@@ -20,6 +20,11 @@ class VLLMRerankProvider(RerankProvider):
         self.auth_key = provider_config.get("rerank_api_key", "")
         self.base_url = provider_config.get("rerank_api_base", "http://127.0.0.1:8000")
         self.base_url = self.base_url.rstrip("/")
+        self.api_suffix = provider_config.get("rerank_api_suffix", "/v1/rerank")
+        if self.api_suffix is None:
+            self.api_suffix = "/v1/rerank"
+        if self.api_suffix and not self.api_suffix.startswith("/"):
+            self.api_suffix = "/" + self.api_suffix
         self.timeout = provider_config.get("timeout", 20)
         self.model = provider_config.get("rerank_model", "BAAI/bge-reranker-base")
 
@@ -52,12 +57,13 @@ class VLLMRerankProvider(RerankProvider):
                 url = f"{url}/v1/rerank"
 
         assert self.client is not None
+        rerank_url = f"{self.base_url}{self.api_suffix}"
         
         logger.info(f"[VLLM Rerank] 准备发起请求 | URL={url} | model={self.model} | query_length={len(query)} | docs_count={len(documents)} | top_n={top_n}")
         logger.debug(f"[VLLM Rerank] 请求载荷 (Payload): {payload}")
 
         try:
-            async with self.client.post(url, json=payload) as response:
+            async with self.client.post(rerank_url, json=payload) as response:
                 response_text = await response.text()
                 logger.info(f"[VLLM Rerank] API响应状态码: {response.status}")
                 if response.status >= 400:
