@@ -38,9 +38,18 @@ class Main(Star):
             p_settings = cfg["platform_settings"]
             wake_prefix = cfg.get("wake_prefix", [])
             if len(messages) == 1:
-                if (
+                is_empty_at = (
                     isinstance(messages[0], Comp.At)
                     and str(messages[0].qq) == str(event.get_self_id())
+                )
+                # If empty @ handling is disabled, silently discard the empty @
+                # to prevent it from leaking into the main LLM pipeline
+                if is_empty_at and not p_settings.get("empty_mention_waiting", True):
+                    event.stop_event()
+                    return
+
+                if (
+                    is_empty_at
                     and p_settings.get("empty_mention_waiting", True)
                 ) or (
                     isinstance(messages[0], Comp.Plain)

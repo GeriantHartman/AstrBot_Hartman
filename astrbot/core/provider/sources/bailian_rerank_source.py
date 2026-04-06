@@ -49,7 +49,8 @@ class BailianRerankProvider(RerankProvider):
 
         self.model = provider_config.get("rerank_model", "qwen3-rerank")
         self.timeout = provider_config.get("timeout", 30)
-        self.return_documents = provider_config.get("return_documents", False)
+        self.return_documents = True # 强制开启，用于排查 index 问题
+        self.instruct = provider_config.get("instruct", "")
         self.instruct = provider_config.get("instruct", "")
 
         self.base_url = provider_config.get(
@@ -144,14 +145,29 @@ class BailianRerankProvider(RerankProvider):
 
         results = data.get("output", {}).get("results", [])
         if not results:
-            logger.warning(f"百炼 Rerank 返回空结果: {data}")
+            logger.warning(f"[Bailian Rerank] 警告：API返回空结果。原始返回数据: {data}")
             return []
 
         # 转换为RerankResult对象，使用.get()避免KeyError
         rerank_results = []
+        
+        if results:
+            logger.debug(f"[Bailian Rerank] 原始返回结果第一条示例: {results[0]}")
+            
         for idx, result in enumerate(results):
             try:
-                index = result.get("index", idx)
+                # 首先尝试标准 index 字段 (有些 API 会返回 original_index 或 document.index)
+                index = result.get("index")
+                if index is None:
+                    # 尝试其他可能的字段名
+                    if "document_index" in result:
+                        index = result["document_index"]
+                    elif "document" in result and "index" in result["document"]:
+                        index = result["document"]["index"]
+                    else:
+                        logger.warning(f"[Bailian Rerank] 警告: 无法在结果中找到 index 字段，直接使用顺序 idx={idx}。原始结果: {result}")
+                        index = idx
+
                 relevance_score = result.get("relevance_score", 0.0)
 
                 if relevance_score is None:
@@ -159,7 +175,7 @@ class BailianRerankProvider(RerankProvider):
                     relevance_score = 0.0
 
                 rerank_result = RerankResult(
-                    index=index, relevance_score=relevance_score
+                    index=int(index), relevance_score=float(relevance_score)
                 )
                 rerank_results.append(rerank_result)
             except Exception as e:
@@ -218,20 +234,30 @@ class BailianRerankProvider(RerankProvider):
             # 构建请求载荷，如果top_n为None则返回所有重排序结果
             payload = self._build_payload(query, documents, top_n)
 
-            logger.debug(
-                f"百炼 Rerank 请求: query='{query[:50]}...', 文档数量={len(documents)}"
+            logger.info(
+                f"[Bailian Rerank] 准备发起请求 | URL={self.base_url} | model={self.model} | query_length={len(query)} | docs_count={len(documents)} | top_n={top_n}"
             )
+            logger.debug(f"[Bailian Rerank] 请求载荷 (Payload): {payload}")
 
             # 发送请求
             async with self.client.post(self.base_url, json=payload) as response:
+                response_text = await response.text()
+                logger.info(f"[Bailian Rerank] API响应状态码: {response.status}")
+                if response.status >= 400:
+                    logger.error(f"[Bailian Rerank] API请求失败，返回内容: {response_text}")
+                else:
+                    logger.debug(f"[Bailian Rerank] API返回内容: {response_text}")
+
                 response.raise_for_status()
-                response_data = await response.json()
+                
+                import json
+                response_data = json.loads(response_text)
 
                 # 解析结果并记录使用量
                 results = self._parse_results(response_data)
                 self._log_usage(response_data)
 
-                logger.debug(f"百炼 Rerank 成功返回 {len(results)} 个结果")
+                logger.info(f"[Bailian Rerank] 重排序完成，成功返回 {len(results)} 个结果")
 
                 return results
 
@@ -243,7 +269,7 @@ class BailianRerankProvider(RerankProvider):
             raise
         except Exception as e:
             error_msg = f"重排序失败: {e}"
-            logger.error(f"百炼 Rerank 处理失败: {e}")
+            logger.error(f"百炼 Rerank 处理失败(异常): {e}")
             raise BailianRerankError(error_msg) from e
 
     async def terminate(self) -> None:

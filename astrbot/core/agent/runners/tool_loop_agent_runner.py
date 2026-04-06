@@ -337,6 +337,7 @@ class ToolLoopAgentRunner(BaseAgentRunner[TContext]):
                                     "Chat Model %s returned empty output after streaming started; skipping empty-output retry.",
                                     candidate_id,
                                 )
+                                return
                             else:
                                 logger.warning(
                                     "Chat Model %s returned empty output on attempt %s/%s.",
@@ -992,6 +993,19 @@ class ToolLoopAgentRunner(BaseAgentRunner[TContext]):
                 self._tool_schema_param_set, tool_names
             )
             if param_subset.tools and tool_names:
+                # If the first response already contains complete tool arguments, skip the
+                # re-query entirely. This avoids an unnecessary round-trip and prevents
+                # 400 errors from thinking-mode models that reject tool_choice="required".
+                if llm_resp.tools_call_args and all(llm_resp.tools_call_args):
+                    return llm_resp, subset
+
+                # Thinking-mode models (e.g. deepseek-reasoner) do not support
+                # tool_choice="required". Fall back to "auto" when the response
+                # contains reasoning_content, which indicates thinking mode.
+                _requery_tool_choice = (
+                    "auto" if llm_resp.reasoning_content else "required"
+                )
+
                 contexts = self._build_tool_requery_context(tool_names)
                 requery_resp = await self.provider.text_chat(
                     contexts=contexts,
@@ -999,7 +1013,7 @@ class ToolLoopAgentRunner(BaseAgentRunner[TContext]):
                     model=self.req.model,
                     session_id=self.req.session_id,
                     extra_user_content_parts=self.req.extra_user_content_parts,
-                    tool_choice="required",
+                    tool_choice=_requery_tool_choice,
                     abort_signal=self._abort_signal,
                 )
                 if requery_resp:
@@ -1032,7 +1046,7 @@ class ToolLoopAgentRunner(BaseAgentRunner[TContext]):
                         model=self.req.model,
                         session_id=self.req.session_id,
                         extra_user_content_parts=self.req.extra_user_content_parts,
-                        tool_choice="required",
+                        tool_choice=_requery_tool_choice,
                         abort_signal=self._abort_signal,
                     )
                     if repair_resp:

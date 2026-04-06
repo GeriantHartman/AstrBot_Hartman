@@ -431,13 +431,15 @@ class ProviderOpenAIOfficial(Provider):
     async def _query(self, payloads: dict, tools: ToolSet | None) -> LLMResponse:
         if tools:
             model = payloads.get("model", "").lower()
-            omit_empty_param_field = "gemini" in model
+            omit_empty_param_field = "gemini" in model or "deepseek" in model
             tool_list = tools.get_func_desc_openai_style(
                 omit_empty_parameter_field=omit_empty_param_field,
             )
             if tool_list:
                 payloads["tools"] = tool_list
-                payloads["tool_choice"] = payloads.get("tool_choice", "auto")
+                # deepseek-reasoner does not support explicit tool_choice="auto"
+                if "deepseek-reasoner" not in model:
+                    payloads["tool_choice"] = payloads.get("tool_choice", "auto")
 
         # 不在默认参数中的参数放在 extra_body 中
         extra_body = {}
@@ -452,10 +454,19 @@ class ProviderOpenAIOfficial(Provider):
         # 读取并合并 custom_extra_body 配置
         custom_extra_body = self.provider_config.get("custom_extra_body", {})
         if isinstance(custom_extra_body, dict):
+            for k, v in custom_extra_body.items():
+                if isinstance(v, str) and (
+                    v.strip().startswith("{") or v.strip().startswith("[")
+                ):
+                    try:
+                        custom_extra_body[k] = json.loads(v)
+                    except json.JSONDecodeError:
+                        pass
             extra_body.update(custom_extra_body)
         self._apply_provider_specific_extra_body_overrides(extra_body)
 
         model = payloads.get("model", "").lower()
+        logger.info(f"[OpenAI Request] model: {model}, payloads: {json.dumps(payloads, ensure_ascii=False)}, extra_body: {json.dumps(extra_body, ensure_ascii=False)}")
 
         completion = await self.client.chat.completions.create(
             **payloads,
@@ -468,7 +479,7 @@ class ProviderOpenAIOfficial(Provider):
                 f"API 返回的 completion 类型错误：{type(completion)}: {completion}。",
             )
 
-        logger.debug(f"completion: {completion}")
+        logger.info(f"completion: {completion}")
 
         llm_response = await self._parse_openai_completion(completion, tools)
 
@@ -482,13 +493,15 @@ class ProviderOpenAIOfficial(Provider):
         """流式查询API，逐步返回结果"""
         if tools:
             model = payloads.get("model", "").lower()
-            omit_empty_param_field = "gemini" in model
+            omit_empty_param_field = "gemini" in model or "deepseek" in model
             tool_list = tools.get_func_desc_openai_style(
                 omit_empty_parameter_field=omit_empty_param_field,
             )
             if tool_list:
                 payloads["tools"] = tool_list
-                payloads["tool_choice"] = payloads.get("tool_choice", "auto")
+                # deepseek-reasoner does not support explicit tool_choice="auto"
+                if "deepseek-reasoner" not in model:
+                    payloads["tool_choice"] = payloads.get("tool_choice", "auto")
 
         # 不在默认参数中的参数放在 extra_body 中
         extra_body = {}
@@ -496,6 +509,14 @@ class ProviderOpenAIOfficial(Provider):
         # 读取并合并 custom_extra_body 配置
         custom_extra_body = self.provider_config.get("custom_extra_body", {})
         if isinstance(custom_extra_body, dict):
+            for k, v in custom_extra_body.items():
+                if isinstance(v, str) and (
+                    v.strip().startswith("{") or v.strip().startswith("[")
+                ):
+                    try:
+                        custom_extra_body[k] = json.loads(v)
+                    except json.JSONDecodeError:
+                        pass
             extra_body.update(custom_extra_body)
 
         to_del = []
@@ -506,6 +527,9 @@ class ProviderOpenAIOfficial(Provider):
         for key in to_del:
             del payloads[key]
         self._apply_provider_specific_extra_body_overrides(extra_body)
+
+        model = payloads.get("model", "").lower()
+        logger.info(f"[OpenAI Stream Request] model: {model}, payloads: {json.dumps(payloads, ensure_ascii=False)}, extra_body: {json.dumps(extra_body, ensure_ascii=False)}")
 
         stream = await self.client.chat.completions.create(
             **payloads,
@@ -736,28 +760,21 @@ class ProviderOpenAIOfficial(Provider):
                 if isinstance(tool_call, str):
                     # workaround for #1359
                     tool_call = json.loads(tool_call)
-                if tools is None:
-                    # 工具集未提供
-                    # Should be unreachable
-                    raise Exception("工具集未提供")
-                for tool in tools.func_list:
-                    if (
-                        tool_call.type == "function"
-                        and tool.name == tool_call.function.name
-                    ):
-                        # workaround for #1454
-                        if isinstance(tool_call.function.arguments, str):
-                            args = json.loads(tool_call.function.arguments)
-                        else:
-                            args = tool_call.function.arguments
-                        args_ls.append(args)
-                        func_name_ls.append(tool_call.function.name)
-                        tool_call_ids.append(tool_call.id)
+                if tool_call.type != "function":
+                    continue
+                # workaround for #1454
+                if isinstance(tool_call.function.arguments, str):
+                    args = json.loads(tool_call.function.arguments)
+                else:
+                    args = tool_call.function.arguments
+                args_ls.append(args)
+                func_name_ls.append(tool_call.function.name)
+                tool_call_ids.append(tool_call.id)
 
-                        # gemini-2.5 / gemini-3 series extra_content handling
-                        extra_content = getattr(tool_call, "extra_content", None)
-                        if extra_content is not None:
-                            tool_call_extra_content_dict[tool_call.id] = extra_content
+                # gemini-2.5 / gemini-3 series extra_content handling
+                extra_content = getattr(tool_call, "extra_content", None)
+                if extra_content is not None:
+                    tool_call_extra_content_dict[tool_call.id] = extra_content
             llm_response.role = "tool"
             llm_response.tools_call_args = args_ls
             llm_response.tools_call_name = func_name_ls
@@ -770,10 +787,12 @@ class ProviderOpenAIOfficial(Provider):
             )
         has_text_output = bool((llm_response.completion_text or "").strip())
         has_reasoning_output = bool(llm_response.reasoning_content.strip())
+        has_raw_tool_calls = bool(choice.message.tool_calls)
         if (
             not has_text_output
             and not has_reasoning_output
             and not llm_response.tools_call_args
+            and not has_raw_tool_calls
         ):
             logger.error(f"OpenAI completion has no usable output: {completion}.")
             raise EmptyModelOutputError(
@@ -944,12 +963,12 @@ class ProviderOpenAIOfficial(Provider):
 
         if (
             "Function calling is not enabled" in str(e)
-            or ("tool" in str(e).lower() and "support" in str(e).lower())
+            or (re.search(r"\btool\b", str(e), re.I) and "support" in str(e).lower())
             or ("function" in str(e).lower() and "support" in str(e).lower())
         ):
             # openai, ollama, gemini openai, siliconcloud 的错误提示与 code 不统一，只能通过字符串匹配
             logger.info(
-                f"{self.get_model()} 不支持函数工具调用，已自动去除，不影响使用。",
+                f"{self.get_model()} 不支持函数工具调用（或者是暂时无法解析），已自动去除以重试。原因: {e}",
             )
             payloads.pop("tools", None)
             return (

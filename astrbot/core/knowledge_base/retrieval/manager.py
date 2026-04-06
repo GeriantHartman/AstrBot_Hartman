@@ -278,6 +278,20 @@ class RetrievalManager:
                 result.score = rerank_result.relevance_score
                 reranked_list.append(result)
 
+        # DEBUG LOGGING BEFORE SORT
+        try:
+            from astrbot import logger
+            logger.info(f"[Rerank Debug] Before Sort: {[f'idx:{r.metadata.get('chunk_index')} score:{r.score:.4f}' for r in reranked_list]}")
+        except Exception:
+            pass
+
         reranked_list.sort(key=lambda x: x.score, reverse=True)
+
+        # DEBUG LOGGING AFTER SORT
+        try:
+            from astrbot import logger
+            logger.info(f"[Rerank Debug] After Sort: {[f'idx:{r.metadata.get('chunk_index')} score:{r.score:.4f}' for r in reranked_list[:top_k]]}")
+        except Exception:
+            pass
 
         return reranked_list[:top_k]

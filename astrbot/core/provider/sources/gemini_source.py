@@ -223,50 +223,14 @@ class ProviderGoogleGenAI(Provider):
 
         # oper thinking config
         thinking_config = None
-        if model_name in [
-            "gemini-2.5-pro",
-            "gemini-2.5-pro-preview",
-            "gemini-2.5-flash",
-            "gemini-2.5-flash-preview",
-            "gemini-2.5-flash-lite",
-            "gemini-2.5-flash-lite-preview",
-            "gemini-robotics-er-1.5-preview",
-            "gemini-live-2.5-flash-preview-native-audio-09-2025",
-        ]:
-            # The thinkingBudget parameter, introduced with the Gemini 2.5 series
-            thinking_budget = self.provider_config.get("gm_thinking_config", {}).get(
-                "budget", 0
+        thinking_budget = self.provider_config.get("gm_thinking_config", {}).get(
+            "budget", 0
+        )
+        if thinking_budget and thinking_budget > 0:
+            thinking_config = types.ThinkingConfig(
+                include_thoughts=True,
+                thinking_budget=thinking_budget,
             )
-            if thinking_budget is not None:
-                thinking_config = types.ThinkingConfig(
-                    thinking_budget=thinking_budget,
-                )
-        elif model_name in [
-            "gemini-3-pro",
-            "gemini-3-pro-preview",
-            "gemini-3-flash",
-            "gemini-3-flash-preview",
-            "gemini-3-flash-lite",
-            "gemini-3-flash-lite-preview",
-        ]:
-            # The thinkingLevel parameter, recommended for Gemini 3 models and onwards
-            # Gemini 2.5 series models don't support thinkingLevel; use thinkingBudget instead.
-            thinking_level = self.provider_config.get("gm_thinking_config", {}).get(
-                "level", "HIGH"
-            )
-            if thinking_level and isinstance(thinking_level, str):
-                thinking_level = thinking_level.upper()
-                if thinking_level not in ["MINIMAL", "LOW", "MEDIUM", "HIGH"]:
-                    logger.warning(
-                        f"Invalid thinking level: {thinking_level}, using HIGH"
-                    )
-                    thinking_level = "HIGH"
-                level = types.ThinkingLevel(thinking_level)
-                thinking_config = types.ThinkingConfig()
-                if not hasattr(types.ThinkingConfig, "thinking_level"):
-                    setattr(types.ThinkingConfig, "thinking_level", level)
-                else:
-                    thinking_config.thinking_level = level
 
         return types.GenerateContentConfig(
             system_instruction=system_instruction,
@@ -736,10 +700,16 @@ class ProviderGoogleGenAI(Provider):
                 if chunk.candidates[0].content.parts:
                     final_response = LLMResponse("assistant", is_chunk=False)
                     final_response.raw_completion = chunk
-                    final_response.result_chain = self._process_content_parts(
-                        chunk.candidates[0],
-                        final_response,
-                    )
+                    try:
+                        final_response.result_chain = self._process_content_parts(
+                            chunk.candidates[0],
+                            final_response,
+                        )
+                    except EmptyModelOutputError:
+                        # Final streaming chunk may have empty text parts (e.g. only
+                        # thought_signature); the real content is in accumulated_text
+                        # which will be applied after the loop.
+                        pass
                     final_response.id = chunk.response_id
                     if chunk.usage_metadata:
                         final_response.usage = self._extract_usage(chunk.usage_metadata)
