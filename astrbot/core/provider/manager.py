@@ -789,6 +789,17 @@ class ProviderManager:
                     prov for prov in config["provider"] if prov.get("id") != tpid
                 ]
             config.save_config()
+            # Sync deletion to all non-default configs
+            for conf_id, conf in self.acm.confs.items():
+                if conf_id == "default":
+                    continue
+                original_len = len(conf.get("provider", []))
+                conf["provider"] = [
+                    prov for prov in conf.get("provider", [])
+                    if prov.get("id") not in target_prov_ids
+                ]
+                if len(conf.get("provider", [])) != original_len:
+                    conf.save_config()
             logger.info(f"Provider {target_prov_ids} 已从配置中删除。")
 
     async def update_provider(self, origin_provider_id: str, new_config: dict) -> None:
@@ -812,6 +823,15 @@ class ProviderManager:
             else:
                 raise ValueError(f"Provider ID {origin_provider_id} not found")
             config.save_config()
+            # Sync to all non-default configs
+            for conf_id, conf in self.acm.confs.items():
+                if conf_id == "default":
+                    continue
+                for idx, prov in enumerate(conf.get("provider", [])):
+                    if prov.get("id", None) == origin_provider_id:
+                        conf["provider"][idx] = new_config
+                        conf.save_config()
+                        break
             # reload instance
             await self.reload(new_config)
 
@@ -828,6 +848,14 @@ class ProviderManager:
             # add to config
             config["provider"].append(new_config)
             config.save_config()
+            # Sync addition to all non-default configs
+            for conf_id, conf in self.acm.confs.items():
+                if conf_id == "default":
+                    continue
+                existing_ids = {p.get("id") for p in conf.get("provider", [])}
+                if npid not in existing_ids:
+                    conf["provider"].append(new_config)
+                    conf.save_config()
             # load instance
             await self.load_provider(new_config)
             # sync in-memory config for API queries (e.g., embedding provider list)
