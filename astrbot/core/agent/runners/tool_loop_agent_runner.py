@@ -258,6 +258,12 @@ class ToolLoopAgentRunner(BaseAgentRunner[TContext]):
         self._last_tool_name: str | None = None
         self._same_tool_streak = 0
 
+        # Dynamic tool reduction state (方案 D)
+        self._step_count = 0
+        self._used_tool_names: set[str] = set()
+        self._full_tool_set: ToolSet | None = None
+        self.dynamic_tool_reduction = kwargs.get("dynamic_tool_reduction", False)
+
         # These two are used for tool schema mode handling
         # We now have two modes:
         # - "full": use full tool schema for LLM calls, default.
@@ -302,9 +308,25 @@ class ToolLoopAgentRunner(BaseAgentRunner[TContext]):
         self, *, include_model: bool = True
     ) -> T.AsyncGenerator[LLMResponse, None]:
         """Yields chunks *and* a final LLMResponse."""
+        # Dynamic tool reduction: after the first step, only send used tools
+        # to reduce tool schema token overhead in multi-step calls.
+        func_tool = self.req.func_tool
+        if (
+            self.dynamic_tool_reduction
+            and self._step_count > 0
+            and self._used_tool_names
+            and func_tool
+            and len(func_tool.tools) > len(self._used_tool_names)
+        ):
+            reduced = ToolSet(
+                [t for t in func_tool.tools if t.name in self._used_tool_names]
+            )
+            if reduced.tools:
+                func_tool = reduced
+
         payload = {
             "contexts": self.run_context.messages,  # list[Message]
-            "func_tool": self.req.func_tool,
+            "func_tool": func_tool,
             "session_id": self.req.session_id,
             "extra_user_content_parts": self.req.extra_user_content_parts,  # list[ContentPart]
             "abort_signal": self._abort_signal,
@@ -521,9 +543,16 @@ class ToolLoopAgentRunner(BaseAgentRunner[TContext]):
 
         # do truncate and compress
         token_usage = self.req.conversation.token_usage if self.req.conversation else 0
+        tool_schema_overhead = (
+            self.req.func_tool.estimate_token_count()
+            if self.req.func_tool
+            else 0
+        )
         self._simple_print_message_role("[BefCompact]")
         self.run_context.messages = await self.context_manager.process(
-            self.run_context.messages, trusted_token_usage=token_usage
+            self.run_context.messages,
+            trusted_token_usage=token_usage,
+            tool_schema_overhead=tool_schema_overhead,
         )
         self._simple_print_message_role("[AftCompact]")
 
@@ -622,6 +651,10 @@ class ToolLoopAgentRunner(BaseAgentRunner[TContext]):
 
         # 如果有工具调用，还需处理工具调用
         if llm_resp.tools_call_name:
+            # Track tool names for dynamic tool reduction (方案 D)
+            self._step_count += 1
+            self._used_tool_names.update(llm_resp.tools_call_name)
+
             if self.tool_schema_mode == "skills_like":
                 llm_resp, _ = await self._resolve_tool_exec(llm_resp)
                 if not llm_resp.tools_call_name:

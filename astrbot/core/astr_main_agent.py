@@ -109,6 +109,9 @@ class MainAgentBuildConfig:
     """
     tool_schema_mode: str = "full"
     """The tool schema mode, can be 'full' or 'skills-like'."""
+    dynamic_tool_reduction: bool = False
+    """When enabled, multi-step tool calls send only previously-used tools
+    in subsequent steps to reduce tool schema token overhead."""
     provider_wake_prefix: str = ""
     """The wake prefix for the provider. If the user message does not start with this prefix,
     the main agent will not be triggered."""
@@ -1405,6 +1408,7 @@ async def build_main_agent(
         truncate_turns=config.dequeue_context_length,
         enforce_max_turns=config.max_context_length,
         tool_schema_mode=config.tool_schema_mode,
+        dynamic_tool_reduction=config.dynamic_tool_reduction,
         fallback_providers=_get_fallback_chat_providers(
             provider, plugin_context, config.provider_settings
         ),

@@ -62,6 +62,7 @@ class InternalAgentSubStage(Stage):
                 self.tool_schema_mode,
             )
             self.tool_schema_mode = "full"
+        self.dynamic_tool_reduction: bool = settings.get("dynamic_tool_reduction", False)
         if isinstance(self.max_step, bool):  # workaround: #2622
             self.max_step = 30
         self.show_tool_use: bool = settings.get("show_tool_use_status", True)
@@ -116,6 +117,7 @@ class InternalAgentSubStage(Stage):
         self.main_agent_cfg = MainAgentBuildConfig(
             tool_call_timeout=self.tool_call_timeout,
             tool_schema_mode=self.tool_schema_mode,
+            dynamic_tool_reduction=self.dynamic_tool_reduction,
             sanitize_context_by_modalities=self.sanitize_context_by_modalities,
             kb_agentic_mode=self.kb_agentic_mode,
             file_extract_enabled=self.file_extract_enabled,
@@ -404,6 +406,77 @@ class InternalAgentSubStage(Stage):
                     consumed_marked=follow_up_consumed_marked,
                 )
 
+    @staticmethod
+    def _compress_tool_call_messages(
+        messages: list[dict],
+        mode: str = "compress",
+    ) -> list[dict]:
+        """Compress tool call intermediate steps in message history.
+
+        Replaces sequences of assistant(tool_calls) + tool(result) messages
+        with a single brief assistant summary message.
+
+        Args:
+            messages: List of message dicts (already model_dump'd).
+            mode: "full" = keep as-is, "compress" = summarize, "remove" = drop entirely.
+
+        Returns:
+            Compressed message list.
+        """
+        if mode == "full":
+            return messages
+
+        result = []
+        i = 0
+        while i < len(messages):
+            msg = messages[i]
+            # Detect assistant message with tool_calls
+            if msg.get("role") == "assistant" and msg.get("tool_calls"):
+                tool_calls = msg["tool_calls"]
+                # Build a name lookup: tool_call_id -> tool_name
+                id_to_name = {}
+                for tc in tool_calls:
+                    tc_id = tc.get("id", "")
+                    func_info = tc.get("function", {})
+                    tc_name = func_info.get("name", "unknown")
+                    id_to_name[tc_id] = tc_name
+
+                # Collect subsequent tool result messages
+                summary_parts = []
+                i += 1
+                while i < len(messages) and messages[i].get("role") == "tool":
+                    tool_msg = messages[i]
+                    tc_id = tool_msg.get("tool_call_id", "")
+                    tool_name = id_to_name.get(tc_id, "tool")
+                    # Truncate long tool results for the summary
+                    content = tool_msg.get("content", "")
+                    if isinstance(content, str) and len(content) > 80:
+                        content = content[:80] + "..."
+                    summary_parts.append(f"{tool_name} → {content}")
+                    i += 1
+
+                if mode == "compress" and summary_parts:
+                    # Also preserve any text content from the assistant message
+                    assistant_text = ""
+                    ac = msg.get("content")
+                    if isinstance(ac, str) and ac.strip():
+                        assistant_text = ac.strip() + "\n"
+                    elif isinstance(ac, list):
+                        for part in ac:
+                            if isinstance(part, dict) and part.get("type") == "text":
+                                t = part.get("text", "").strip()
+                                if t:
+                                    assistant_text += t + "\n"
+
+                    summary = assistant_text + "[tool_calls] " + "; ".join(summary_parts)
+                    result.append({"role": "assistant", "content": summary})
+                # mode == "remove": skip entirely (don't append anything)
+            else:
+                result.append(msg)
+                i += 1
+
+        return result
+
     async def _save_to_history(
         self,
         event: AstrMessageEvent,
@@ -447,17 +520,17 @@ class InternalAgentSubStage(Stage):
                 continue
             message_to_save.append(message.model_dump())
 
-        # if user_aborted:
-        #     message_to_save.append(
-        #         Message(
-        #             role="assistant",
-        #             content="[User aborted this request. Partial output before abort was preserved.]",
-        #         ).model_dump()
-        #     )
+        # Compress tool call intermediate steps based on config
+        tool_calls_history_mode = self.ctx.astrbot_config.get(
+            "provider_settings", {}
+        ).get("tool_calls_history_mode", "full")
+        if tool_calls_history_mode in ("compress", "remove"):
+            message_to_save = self._compress_tool_call_messages(
+                message_to_save, mode=tool_calls_history_mode
+            )
 
         token_usage = None
         if runner_stats:
-            # token_usage = runner_stats.token_usage.total
             token_usage = llm_response.usage.total if llm_response.usage else None
 
         await self.conv_manager.update_conversation(

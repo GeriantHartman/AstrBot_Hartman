@@ -42,12 +42,19 @@ class ContextManager:
             )
 
     async def process(
-        self, messages: list[Message], trusted_token_usage: int = 0
+        self,
+        messages: list[Message],
+        trusted_token_usage: int = 0,
+        tool_schema_overhead: int = 0,
     ) -> list[Message]:
         """Process the messages.
 
         Args:
             messages: The original message list.
+            trusted_token_usage: The total token usage from LLM API.
+            tool_schema_overhead: Estimated token overhead of tool schemas
+                (API `tools` parameter), which is not in messages but counts
+                toward the context window.
 
         Returns:
             The processed message list.
@@ -63,10 +70,15 @@ class ContextManager:
                     drop_turns=self.config.truncate_turns,
                 )
 
+            # 1.5 Truncate old tool results to save tokens
+            result = self.truncator.compress_old_tool_results(result)
+
             # 2. 基于 token 的压缩
             if self.config.max_context_tokens > 0:
                 total_tokens = self.token_counter.count_tokens(
-                    result, trusted_token_usage
+                    result,
+                    trusted_token_usage,
+                    tool_schema_overhead=tool_schema_overhead,
                 )
 
                 if self.compressor.should_compress(

@@ -203,7 +203,8 @@ class ToolSet:
     def openai_schema(self, omit_empty_parameter_field: bool = False) -> list[dict]:
         """Convert tools to OpenAI API function calling schema format."""
         result = []
-        for tool in self.tools:
+        # Sort by name to ensure stable serialization order for prompt caching
+        for tool in sorted(self.tools, key=lambda t: t.name):
             func_def = {"type": "function", "function": {"name": tool.name}}
             if tool.description:
                 func_def["function"]["description"] = tool.description
@@ -220,7 +221,8 @@ class ToolSet:
     def anthropic_schema(self) -> list[dict]:
         """Convert tools to Anthropic API format."""
         result = []
-        for tool in self.tools:
+        # Sort by name to ensure stable serialization order for prompt caching
+        for tool in sorted(self.tools, key=lambda t: t.name):
             input_schema = {"type": "object"}
             if tool.parameters:
                 input_schema["properties"] = tool.parameters.get("properties", {})
@@ -316,7 +318,8 @@ class ToolSet:
             return result
 
         tools = []
-        for tool in self.tools:
+        # Sort by name to ensure stable serialization order for prompt caching
+        for tool in sorted(self.tools, key=lambda t: t.name):
             d: dict[str, Any] = {"name": tool.name}
             if tool.description:
                 d["description"] = tool.description
@@ -364,3 +367,24 @@ class ToolSet:
 
     def __str__(self) -> str:
         return f"ToolSet(tools={self.tools})"
+
+    def estimate_token_count(self) -> int:
+        """Estimate the total token overhead of all tool schemas.
+
+        This accounts for the tokens consumed by the `tools` API parameter
+        (name + description + parameters JSON Schema) which is NOT counted
+        by the message-level token counter but IS billed by the API.
+        """
+        import json
+
+        total = 0
+        for tool in self.tools:
+            name_tokens = len(tool.name) * 0.3
+            desc_tokens = sum(
+                0.6 if "\u4e00" <= c <= "\u9fff" else 0.3
+                for c in (tool.description or "")
+            )
+            params_str = json.dumps(tool.parameters) if tool.parameters else "{}"
+            params_tokens = len(params_str) * 0.3
+            total += name_tokens + desc_tokens + params_tokens + 20  # structural overhead
+        return int(total)

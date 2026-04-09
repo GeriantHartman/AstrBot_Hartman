@@ -152,6 +152,8 @@ DEFAULT_CONFIG = {
         "max_agent_step": 30,
         "tool_call_timeout": 120,
         "tool_schema_mode": "full",
+        "tool_calls_history_mode": "full",  # "full", "compress", or "remove"
+        "dynamic_tool_reduction": False,
         "llm_safety_mode": True,
         "safety_mode_strategy": "system_prompt",  # TODO: llm judge
         "file_extract": {
@@ -2785,6 +2787,12 @@ CONFIG_METADATA_2 = {
                     "tool_schema_mode": {
                         "type": "string",
                     },
+                    "tool_calls_history_mode": {
+                        "type": "string",
+                    },
+                    "dynamic_tool_reduction": {
+                        "type": "bool",
+                    },
                     "file_extract": {
                         "type": "object",
                         "items": {
@@ -3552,6 +3560,24 @@ CONFIG_METADATA_3 = {
                         "options": ["skills_like", "full"],
                         "labels": ["Skills-like（两阶段）", "Full（完整参数）"],
                         "hint": "skills-like 先下发工具名称与描述，再下发参数；full 一次性下发完整参数。",
+                        "condition": {
+                            "provider_settings.agent_runner_type": "local",
+                        },
+                    },
+                    "provider_settings.tool_calls_history_mode": {
+                        "description": "工具调用历史保存模式",
+                        "type": "string",
+                        "options": ["full", "compress", "remove"],
+                        "labels": ["完整保留", "压缩为摘要（推荐）", "完全移除"],
+                        "hint": "compress: 将工具调用中间步骤压缩为简短摘要，显著减少上下文 token 消耗。remove: 完全移除中间步骤。",
+                        "condition": {
+                            "provider_settings.agent_runner_type": "local",
+                        },
+                    },
+                    "provider_settings.dynamic_tool_reduction": {
+                        "description": "多步工具调用中动态缩减工具集",
+                        "type": "bool",
+                        "hint": "实验性功能。启用后，多步工具调用中的后续步骤只发送已使用的工具，减少 token 开销。",
                         "condition": {
                             "provider_settings.agent_runner_type": "local",
                         },

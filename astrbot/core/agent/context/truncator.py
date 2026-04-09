@@ -200,3 +200,49 @@ class ContextTruncator:
             system_messages, truncated_non_system, messages
         )
         return self.fix_messages(result)
+
+    def compress_old_tool_results(
+        self,
+        messages: list[Message],
+        keep_recent_turns: int = 3,
+        max_tool_result_len: int = 50,
+    ) -> list[Message]:
+        """Truncate the content of old tool result messages.
+
+        For tool messages older than `keep_recent_turns` conversation turns,
+        replace their content with a brief marker to save tokens while
+        preserving the message structure (so fix_messages pairing still works).
+
+        Args:
+            messages: The message list.
+            keep_recent_turns: Number of recent turns whose tool results are kept intact.
+            max_tool_result_len: Max character length for truncated tool results.
+
+        Returns:
+            The message list with old tool results truncated.
+        """
+        # Count turns from the end (a turn boundary = user message)
+        turn_boundaries = [i for i, m in enumerate(messages) if m.role == "user"]
+        if len(turn_boundaries) <= keep_recent_turns:
+            return messages
+
+        # Everything before this index is "old"
+        cutoff_index = turn_boundaries[-keep_recent_turns]
+
+        result = []
+        for i, msg in enumerate(messages):
+            if i < cutoff_index and msg.role == "tool":
+                content = msg.content
+                if isinstance(content, str) and len(content) > max_tool_result_len:
+                    truncated_content = content[:max_tool_result_len] + "..."
+                    result.append(
+                        Message(
+                            role="tool",
+                            content=truncated_content,
+                            tool_call_id=msg.tool_call_id,
+                        )
+                    )
+                    continue
+            result.append(msg)
+
+        return result
