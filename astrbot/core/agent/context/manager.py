@@ -70,8 +70,12 @@ class ContextManager:
                     drop_turns=self.config.truncate_turns,
                 )
 
-            # 1.5 Truncate old tool results to save tokens
-            result = self.truncator.compress_old_tool_results(result)
+            # 1.5 Compress old turns (remove tool chains + strip reasoning)
+            result = self.truncator.compress_old_turns(
+                result,
+                keep_recent_turns=self.config.compress_keep_recent_turns,
+                batch_size=self.config.compress_batch_size,
+            )
 
             # 2. 基于 token 的压缩
             if self.config.max_context_tokens > 0:

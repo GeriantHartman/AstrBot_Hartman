@@ -201,6 +201,9 @@ class ToolLoopAgentRunner(BaseAgentRunner[TContext]):
         llm_compress_provider: Provider | None = None,
         # truncate by turns compressor
         truncate_turns: int = 1,
+        # compress old turns (staircase boundary)
+        compress_keep_recent_turns: int = 3,
+        compress_batch_size: int = 5,
         # customize
         custom_token_counter: TokenCounter | None = None,
         custom_compressor: ContextCompressor | None = None,
@@ -215,6 +218,8 @@ class ToolLoopAgentRunner(BaseAgentRunner[TContext]):
         self.llm_compress_keep_recent = llm_compress_keep_recent
         self.llm_compress_provider = llm_compress_provider
         self.truncate_turns = truncate_turns
+        self.compress_keep_recent_turns = compress_keep_recent_turns
+        self.compress_batch_size = compress_batch_size
         self.custom_token_counter = custom_token_counter
         self.custom_compressor = custom_compressor
         # we will do compress when:
@@ -226,6 +231,8 @@ class ToolLoopAgentRunner(BaseAgentRunner[TContext]):
             # enforce max turns before compression
             enforce_max_turns=self.enforce_max_turns,
             truncate_turns=self.truncate_turns,
+            compress_keep_recent_turns=self.compress_keep_recent_turns,
+            compress_batch_size=self.compress_batch_size,
             llm_compress_instruction=self.llm_compress_instruction,
             llm_compress_keep_recent=self.llm_compress_keep_recent,
             llm_compress_provider=self.llm_compress_provider,
@@ -263,6 +270,12 @@ class ToolLoopAgentRunner(BaseAgentRunner[TContext]):
         self._used_tool_names: set[str] = set()
         self._full_tool_set: ToolSet | None = None
         self.dynamic_tool_reduction = kwargs.get("dynamic_tool_reduction", False)
+
+        # Buffer for intermediate text during tool loops.
+        # When LLM returns text + tool_calls, the text is buffered here
+        # and prepended to the final response (no tool_calls) to avoid
+        # sending multiple messages per user input.
+        self._pending_text_buffer: list[str] = []
 
         # These two are used for tool schema mode handling
         # We now have two modes:
@@ -636,18 +649,55 @@ class ToolLoopAgentRunner(BaseAgentRunner[TContext]):
             await self._complete_with_assistant_response(llm_resp)
 
         # 返回 LLM 结果
-        if llm_resp.result_chain:
-            yield AgentResponse(
-                type="llm_result",
-                data=AgentResponseData(chain=llm_resp.result_chain),
-            )
-        elif llm_resp.completion_text:
-            yield AgentResponse(
-                type="llm_result",
-                data=AgentResponseData(
-                    chain=MessageChain().message(llm_resp.completion_text),
-                ),
-            )
+        # 当有工具调用时，缓存中间文本而非立即发送，避免一次用户输入产生多条消息。
+        # 缓存的文本会在最终回复（无工具调用）时合并发送。
+        if llm_resp.tools_call_name:
+            # Buffer intermediate text for later
+            intermediate = ""
+            if llm_resp.result_chain and hasattr(llm_resp.result_chain, "plain_text"):
+                intermediate = llm_resp.result_chain.plain_text or ""
+            elif llm_resp.completion_text:
+                intermediate = llm_resp.completion_text
+            if intermediate and intermediate.strip():
+                self._pending_text_buffer.append(intermediate.strip())
+        else:
+            # Final response — flush buffered text + current text.
+            # NOTE: _complete_with_assistant_response() was called above, which triggers
+            # on_agent_done → on_llm_response hooks. Those hooks may modify
+            # llm_resp.completion_text (e.g. RPG plugin prepends status bar).
+            # We must read completion_text AFTER hooks have run, and use it as the
+            # authoritative final text (not result_chain, which hooks can't modify).
+            final_text = llm_resp.completion_text or ""
+            if not final_text and llm_resp.result_chain:
+                if hasattr(llm_resp.result_chain, "plain_text"):
+                    final_text = llm_resp.result_chain.plain_text or ""
+
+            if self._pending_text_buffer:
+                merged = "\n\n".join(self._pending_text_buffer)
+                self._pending_text_buffer.clear()
+                if final_text.strip():
+                    merged_text = merged + "\n\n" + final_text
+                else:
+                    merged_text = merged
+                yield AgentResponse(
+                    type="llm_result",
+                    data=AgentResponseData(
+                        chain=MessageChain().message(merged_text),
+                    ),
+                )
+            elif final_text:
+                yield AgentResponse(
+                    type="llm_result",
+                    data=AgentResponseData(
+                        chain=MessageChain().message(final_text),
+                    ),
+                )
+            elif llm_resp.result_chain:
+                # Fallback: no completion_text but has result_chain (no hooks modified it)
+                yield AgentResponse(
+                    type="llm_result",
+                    data=AgentResponseData(chain=llm_resp.result_chain),
+                )
 
         # 如果有工具调用，还需处理工具调用
         if llm_resp.tools_call_name:

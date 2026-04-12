@@ -33,3 +33,11 @@ class ContextConfig:
     """Custom token counting method. If None, the default method is used."""
     custom_compressor: ContextCompressor | None = None
     """Custom context compression method. If None, the default method is used."""
+    compress_keep_recent_turns: int = 3
+    """Minimum number of recent turns to keep uncompressed.
+    Older turns have tool call chains removed and reasoning stripped."""
+    compress_batch_size: int = 5
+    """Staircase step size for the compression boundary.
+    The cutoff advances in jumps of this many turns, keeping the prefix
+    stable between jumps for better LLM API prefix-cache hits.
+    Set to 1 for a per-turn sliding window (no staircase)."""

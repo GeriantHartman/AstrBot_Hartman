@@ -1,4 +1,4 @@
-from ..message import Message
+from ..message import Message, TextPart, ThinkPart
 
 
 class ContextTruncator:
@@ -201,48 +201,125 @@ class ContextTruncator:
         )
         return self.fix_messages(result)
 
-    def compress_old_tool_results(
+    def compress_old_turns(
         self,
         messages: list[Message],
         keep_recent_turns: int = 3,
-        max_tool_result_len: int = 50,
+        batch_size: int = 5,
     ) -> list[Message]:
-        """Truncate the content of old tool result messages.
+        """Aggressively compress old turns for token savings and attention quality.
 
-        For tool messages older than `keep_recent_turns` conversation turns,
-        replace their content with a brief marker to save tokens while
-        preserving the message structure (so fix_messages pairing still works).
+        For turns older than the staircase cutoff:
+          - Remove entire tool call chains (assistant(tool_calls) + tool messages)
+          - Strip reasoning/ThinkPart from final assistant messages
+          - Keep only: user messages + assistant narrative (plain text)
+
+        For recent turns (within keep_recent_turns):
+          - Keep full tool chains
+          - Strip reasoning from intermediate tool-calling steps only (always-on,
+            since CoT for tool selection is never useful post-call)
+
+        Staircase boundary: cutoff advances in jumps of ``batch_size`` turns,
+        so the prefix stays stable for ``batch_size`` turns between jumps,
+        preserving LLM API prefix-cache hits.
 
         Args:
             messages: The message list.
-            keep_recent_turns: Number of recent turns whose tool results are kept intact.
-            max_tool_result_len: Max character length for truncated tool results.
+            keep_recent_turns: Minimum number of recent turns to keep uncompressed.
+            batch_size: Staircase step size. Cutoff moves every batch_size turns.
+                Set to 1 for a sliding window (no staircase).
 
         Returns:
-            The message list with old tool results truncated.
+            Compressed message list.
         """
-        # Count turns from the end (a turn boundary = user message)
-        turn_boundaries = [i for i, m in enumerate(messages) if m.role == "user"]
-        if len(turn_boundaries) <= keep_recent_turns:
+        turn_indices = [i for i, m in enumerate(messages) if m.role == "user"]
+        total_turns = len(turn_indices)
+
+        if total_turns <= keep_recent_turns:
             return messages
 
-        # Everything before this index is "old"
-        cutoff_index = turn_boundaries[-keep_recent_turns]
+        # Staircase: round down compressible turns to nearest batch_size
+        compressible = total_turns - keep_recent_turns
+        compressed_count = (compressible // batch_size) * batch_size
+        if compressed_count <= 0:
+            return messages
 
-        result = []
-        for i, msg in enumerate(messages):
-            if i < cutoff_index and msg.role == "tool":
-                content = msg.content
-                if isinstance(content, str) and len(content) > max_tool_result_len:
-                    truncated_content = content[:max_tool_result_len] + "..."
-                    result.append(
-                        Message(
-                            role="tool",
-                            content=truncated_content,
-                            tool_call_id=msg.tool_call_id,
-                        )
-                    )
+        cutoff_index = turn_indices[compressed_count]
+
+        result: list[Message] = []
+        i = 0
+        while i < len(messages):
+            msg = messages[i]
+
+            if i < cutoff_index:
+                # --- Old region: aggressive compression ---
+                if self._has_tool_calls(msg):
+                    # Skip assistant(tool_calls) + subsequent tool results
+                    i += 1
+                    while i < len(messages) and messages[i].role == "tool":
+                        i += 1
                     continue
-            result.append(msg)
+                if msg.role == "tool":
+                    # Orphaned tool message
+                    i += 1
+                    continue
+                if msg.role == "assistant":
+                    result.append(self._strip_reasoning(msg))
+                    i += 1
+                    continue
+                # user / system: keep as-is
+                result.append(msg)
+                i += 1
+            else:
+                # --- Recent region: keep full, strip intermediate reasoning ---
+                if self._has_tool_calls(msg):
+                    result.append(self._strip_reasoning(msg))
+                else:
+                    result.append(msg)
+                i += 1
 
         return result
+
+    @staticmethod
+    def _strip_reasoning(msg: Message) -> Message:
+        """Strip reasoning/ThinkPart from an assistant message.
+
+        Handles both fully-deserialized ThinkPart objects and raw dicts
+        (``{"type": "think", ...}``) that may appear when messages are
+        loaded directly from the database JSON.
+        """
+        content = msg.content
+        if not isinstance(content, list):
+            return msg
+
+        kept = []
+        for part in content:
+            if isinstance(part, ThinkPart):
+                continue
+            if isinstance(part, dict) and part.get("type") == "think":
+                continue
+            kept.append(part)
+
+        if len(kept) == len(content):
+            return msg  # nothing stripped
+
+        # Simplify single-text-part lists back to a plain string
+        if len(kept) == 0:
+            new_content: str | list = ""
+        elif len(kept) == 1:
+            p = kept[0]
+            if isinstance(p, TextPart):
+                new_content = p.text
+            elif isinstance(p, dict) and p.get("type") == "text":
+                new_content = p.get("text", "")
+            else:
+                new_content = kept
+        else:
+            new_content = kept
+
+        return Message(
+            role=msg.role,
+            content=new_content,
+            tool_calls=msg.tool_calls,
+            tool_call_id=msg.tool_call_id,
+        )

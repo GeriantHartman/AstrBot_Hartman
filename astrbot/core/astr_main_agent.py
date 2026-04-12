@@ -142,6 +142,12 @@ class MainAgentBuildConfig:
     This enforce max turns before compression"""
     dequeue_context_length: int = 1
     """The number of oldest turns to remove when context length limit is reached."""
+    compress_keep_recent_turns: int = 3
+    """Minimum number of recent turns to keep uncompressed.
+    Older turns have tool call chains removed and reasoning stripped."""
+    compress_batch_size: int = 5
+    """Staircase step size for the compression boundary.
+    Larger values give better cache hits but keep more full turns in context."""
     llm_safety_mode: bool = True
     """This will inject healthy and safe system prompt into the main agent,
     to prevent LLM output harmful information"""
@@ -1407,6 +1413,8 @@ async def build_main_agent(
         llm_compress_provider=_get_compress_provider(config, plugin_context),
         truncate_turns=config.dequeue_context_length,
         enforce_max_turns=config.max_context_length,
+        compress_keep_recent_turns=config.compress_keep_recent_turns,
+        compress_batch_size=config.compress_batch_size,
         tool_schema_mode=config.tool_schema_mode,
         dynamic_tool_reduction=config.dynamic_tool_reduction,
         fallback_providers=_get_fallback_chat_providers(
