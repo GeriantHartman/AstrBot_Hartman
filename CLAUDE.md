@@ -274,3 +274,28 @@ class MyPlugin(star.Star):
 - **文件**：`astrbot/core/agent/runners/tool_loop_agent_runner.py`
 - **状况**：`skills_like` 模式的二次询问（re-query）使用 `tool_choice="required"`，但 `deepseek-reasoner` 等思考模式模型不支持此值，导致 400 错误。
 - **修复措施**：(1) 当第一次响应已包含完整参数时，跳过 re-query；(2) 当响应包含 `reasoning_content`（思考模式）时，re-query 降级使用 `tool_choice="auto"`。如果后续 AstrBot 官方升级覆盖了 `tool_loop_agent_runner.py`，必须检查此修复是否被保留。
+
+**7. Provider 设置不同步到多 Config Profile (已修复)**
+- **文件**：`astrbot/core/provider/manager.py`
+- **状况**：WebUI 更新 Provider 设置（如 modalities 加入 `tool_use`）时，只更新了 default config。其他 config profile 保持旧值，导致非 default config 的 LLM 请求中 `modalities` 不含 `tool_use`，所有插件工具被 `_modalities_fix` 静默清空（`req.func_tool = None`）。
+- **修复措施**：`update_provider()`、`create_provider()`、`delete_provider()` 三个方法改为遍历 `self.acm.confs` 中所有 config 进行同步操作，而非只操作 `self.acm.default_conf`。如果后续 AstrBot 官方升级覆盖了 `provider/manager.py`，必须检查此修复是否被保留。
+
+## Skill routing
+
+When the user's request matches an available skill, ALWAYS invoke it using the Skill
+tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
+The skill has specialized workflows that produce better results than ad-hoc answers.
+
+Key routing rules:
+- Product ideas, "is this worth building", brainstorming → invoke office-hours
+- Bugs, errors, "why is this broken", 500 errors → invoke investigate
+- Ship, deploy, push, create PR → invoke ship
+- QA, test the site, find bugs → invoke qa
+- Code review, check my diff → invoke review
+- Update docs after shipping → invoke document-release
+- Weekly retro → invoke retro
+- Design system, brand → invoke design-consultation
+- Visual audit, design polish → invoke design-review
+- Architecture review → invoke plan-eng-review
+- Save progress, checkpoint, resume → invoke checkpoint
+- Code quality, health check → invoke health
