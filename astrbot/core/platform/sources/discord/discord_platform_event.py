@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import binascii
+import re
 from collections.abc import AsyncGenerator
 from io import BytesIO
 from pathlib import Path
@@ -33,6 +34,15 @@ class DiscordViewComponent(BaseMessageComponent):
 
 
 class DiscordPlatformEvent(AstrMessageEvent):
+
+    DISCORD_MAX_LENGTH = 2000
+    SPLIT_PATTERNS = {
+        "paragraph": re.compile(r"\n\n"),
+        "line": re.compile(r"\n"),
+        "sentence": re.compile(r"[。？！.!?\n;；]"),
+        "word": re.compile(r"\s"),
+    }
+
     def __init__(
         self,
         message_str: str,
@@ -47,7 +57,7 @@ class DiscordPlatformEvent(AstrMessageEvent):
         self.interaction_followup_webhook = interaction_followup_webhook
 
     async def send(self, message: MessageChain) -> None:
-        """发送消息到Discord平台"""
+        """发送消息到Discord平台，超过2000字符自动分段"""
         # 解析消息链为 Discord 所需的对象
         try:
             (
@@ -61,36 +71,58 @@ class DiscordPlatformEvent(AstrMessageEvent):
             logger.error(f"[Discord] 解析消息链时失败: {e}", exc_info=True)
             return
 
-        kwargs = {}
-        if content:
-            kwargs["content"] = content
-        if files:
-            kwargs["files"] = files
-        if view:
-            kwargs["view"] = view
-        if embeds:
-            kwargs["embeds"] = embeds
-        if reference_message_id and not self.interaction_followup_webhook:
-            kwargs["reference"] = self.client.get_message(int(reference_message_id))
-        if not kwargs:
-            logger.debug("[Discord] 尝试发送空消息，已忽略。")
-            return
+        # 分割超长文本
+        if content and len(content) > self.DISCORD_MAX_LENGTH:
+            chunks = self._split_message(content)
+        else:
+            chunks = [content] if content else []
 
-        # 根据上下文执行发送/回复操作
+        # 确定发送目标
+        send_target = None
+        if self.interaction_followup_webhook:
+            send_target = self.interaction_followup_webhook
+        else:
+            channel = await self._get_channel()
+            if not channel:
+                return
+            if not isinstance(channel, discord.abc.Messageable):
+                logger.error(f"[Discord] 频道 {channel.id} 不是可发送消息的类型")
+                return
+            send_target = channel
+
         try:
-            # -- 斜杠指令/交互上下文 --
-            if self.interaction_followup_webhook:
-                await self.interaction_followup_webhook.send(**kwargs)
-
-            # -- 常规消息上下文 --
+            if chunks:
+                for idx, chunk in enumerate(chunks):
+                    kwargs = {}
+                    if chunk:
+                        kwargs["content"] = chunk
+                    # 附件、embeds、view 只随最后一段发送
+                    if idx == len(chunks) - 1:
+                        if files:
+                            kwargs["files"] = files
+                        if view:
+                            kwargs["view"] = view
+                        if embeds:
+                            kwargs["embeds"] = embeds
+                    # reference 只随第一段发送
+                    if idx == 0 and reference_message_id and not self.interaction_followup_webhook:
+                        kwargs["reference"] = self.client.get_message(int(reference_message_id))
+                    if kwargs:
+                        await send_target.send(**kwargs)
             else:
-                channel = await self._get_channel()
-                if not channel:
+                # 无文本但有其他内容（纯图片/文件）
+                kwargs = {}
+                if files:
+                    kwargs["files"] = files
+                if view:
+                    kwargs["view"] = view
+                if embeds:
+                    kwargs["embeds"] = embeds
+                if kwargs:
+                    await send_target.send(**kwargs)
+                else:
+                    logger.debug("[Discord] 尝试发送空消息，已忽略。")
                     return
-                if not isinstance(channel, discord.abc.Messageable):
-                    logger.error(f"[Discord] 频道 {channel.id} 不是可发送消息的类型")
-                    return
-                await channel.send(**kwargs)
 
         except Exception as e:
             logger.error(f"[Discord] 发送消息时发生未知错误: {e}", exc_info=True)
@@ -262,10 +294,35 @@ class DiscordPlatformEvent(AstrMessageEvent):
                 logger.debug(f"[Discord] 忽略了不支持的消息组件: {i.type}")
 
         content = "".join(content_parts)
-        if len(content) > 2000:
-            logger.warning("[Discord] 消息内容超过2000字符，将被截断。")
-            content = content[:2000]
         return content, files, view, embeds, reference_message_id
+
+    @classmethod
+    def _split_message(cls, text: str) -> list[str]:
+        """将超长文本按自然边界分割为不超过 DISCORD_MAX_LENGTH 的段"""
+        max_length = cls.DISCORD_MAX_LENGTH
+        if len(text) <= max_length:
+            return [text]
+
+        chunks = []
+        while text:
+            if len(text) <= max_length:
+                chunks.append(text)
+                break
+
+            segment = text[:max_length]
+            split_point = max_length
+
+            # 逐级降级：段落 → 行 → 句子 → 空格
+            for pattern in cls.SPLIT_PATTERNS.values():
+                matches = list(pattern.finditer(segment))
+                if matches:
+                    split_point = matches[-1].end()
+                    break
+
+            chunks.append(text[:split_point])
+            text = text[split_point:]
+
+        return chunks
 
     async def react(self, emoji: str) -> None:
         """对原消息添加反应"""
