@@ -17,7 +17,11 @@ import astrbot.core.message.components as Comp
 from astrbot import logger
 from astrbot.api.provider import Provider
 from astrbot.core.agent.message import AudioURLPart, ContentPart, ImageURLPart, TextPart
-from astrbot.core.exceptions import EmptyModelOutputError
+from astrbot.core.exceptions import (
+    EmptyModelOutputError,
+    LLMContentFilteredError,
+    LLMTransientError,
+)
 from astrbot.core.message.message_event_result import MessageChain
 from astrbot.core.provider.entities import LLMResponse, TokenUsage
 from astrbot.core.provider.func_tool_manager import ToolSet
@@ -462,19 +466,28 @@ class ProviderGoogleGenAI(Provider):
         result_parts: list[types.Part] | None = candidate.content.parts
 
         if finish_reason == types.FinishReason.SAFETY:
-            raise Exception("模型生成内容未通过 Gemini 平台的安全检查")
+            raise LLMContentFilteredError(
+                provider="gemini", reason="SAFETY",
+                msg="模型生成内容未通过 Gemini 平台的安全检查",
+            )
 
         if finish_reason in {
             types.FinishReason.PROHIBITED_CONTENT,
             types.FinishReason.SPII,
             types.FinishReason.BLOCKLIST,
         }:
-            raise Exception("模型生成内容违反 Gemini 平台政策")
+            raise LLMContentFilteredError(
+                provider="gemini", reason=str(finish_reason),
+                msg="模型生成内容违反 Gemini 平台政策",
+            )
 
         # 防止旧版本SDK不存在IMAGE_SAFETY
         if hasattr(types.FinishReason, "IMAGE_SAFETY"):
             if finish_reason == types.FinishReason.IMAGE_SAFETY:
-                raise Exception("模型生成内容违反 Gemini 平台政策")
+                raise LLMContentFilteredError(
+                    provider="gemini", reason="IMAGE_SAFETY",
+                    msg="模型生成内容违反 Gemini 平台政策",
+                )
 
         if not result_parts:
             logger.warning(f"收到的 candidate.content.parts 为空: {candidate}")
@@ -584,8 +597,22 @@ class ProviderGoogleGenAI(Provider):
                 logger.debug(f"genai result: {result}")
 
                 if not result.candidates:
+                    # 区分 prompt-level 内容过滤 vs 纯瞬时空响应:
+                    # 若 prompt_feedback.block_reason 非空,说明是 prompt 被安全策略拦截,
+                    # 同 provider 重试无意义,必须抛 LLMContentFilteredError 让上层切换 provider。
+                    pf = getattr(result, "prompt_feedback", None)
+                    br = getattr(pf, "block_reason", None) if pf else None
+                    if br:
+                        logger.error(
+                            f"请求失败, prompt 被安全策略拦截 (block_reason={br}): {result}"
+                        )
+                        raise LLMContentFilteredError(
+                            provider="gemini",
+                            reason=str(br),
+                            msg=f"Gemini prompt blocked: {br}",
+                        )
                     logger.error(f"请求失败, 返回的 candidates 为空: {result}")
-                    raise Exception("请求失败, 返回的 candidates 为空。")
+                    raise LLMTransientError("请求失败, 返回的 candidates 为空")
 
                 if result.candidates[0].finish_reason == types.FinishReason.RECITATION:
                     if temperature > 2:
@@ -647,6 +674,11 @@ class ProviderGoogleGenAI(Provider):
         model = payloads.get("model", self.get_model())
         conversation = self._prepare_conversation(payloads)
 
+        modalities = ["TEXT"]
+        if self.provider_config.get("gm_resp_image_modal", False):
+            modalities.append("IMAGE")
+        temperature = payloads.get("temperature", 0.7)
+
         result = None
         while True:
             try:
@@ -655,6 +687,8 @@ class ProviderGoogleGenAI(Provider):
                     tools,
                     payloads.get("tool_choice", "auto"),
                     system_instruction,
+                    modalities,
+                    temperature,
                 )
                 result = await self.client.models.generate_content_stream(
                     model=model,
@@ -812,20 +846,76 @@ class ProviderGoogleGenAI(Provider):
         model = model or self.get_model()
 
         payloads = {"messages": context_query, "model": model}
+        # Merge custom_extra_body from WebUI provider config (fixes Gemini bug
+        # where extra_body settings like temperature/top_p were ignored)
+        import json as _json
+        custom_extra_body = self.provider_config.get("custom_extra_body", {})
+        if isinstance(custom_extra_body, dict):
+            for k, v in custom_extra_body.items():
+                if isinstance(v, str) and (
+                    v.strip().startswith("{") or v.strip().startswith("[")
+                ):
+                    try:
+                        v = _json.loads(v)
+                    except _json.JSONDecodeError:
+                        pass
+                payloads[k] = v
+        # Forward generation parameters from kwargs into payloads
+        # so _prepare_query_config can pick up temperature, top_p, etc.
+        for _gen_key in (
+            "temperature", "top_p", "topP", "top_k", "topK",
+            "max_tokens", "maxOutputTokens",
+            "frequency_penalty", "frequencyPenalty",
+            "presence_penalty", "presencePenalty",
+            "stop", "stopSequences", "stop_sequences",
+            "seed", "logprobs", "response_logprobs", "responseLogprobs",
+        ):
+            if _gen_key in kwargs:
+                payloads[_gen_key] = kwargs[_gen_key]
         if func_tool and not func_tool.empty():
             payloads["tool_choice"] = tool_choice
 
-        retry = 10
+        retry = int(self.provider_config.get("retry_max", 3) or 3)
+        backoff_base = float(self.provider_config.get("retry_backoff_base", 1.0) or 1.0)
+        backoff_max = 30.0
         keys = self.api_keys.copy()
 
-        for _ in range(retry):
+        _last_transient: Exception | None = None
+        for _attempt in range(retry):
             try:
                 return await self._query(payloads, func_tool)
             except APIError as e:
+                # HTTP 5xx → treat as transient
+                if getattr(e, "code", None) in (500, 502, 503, 504):
+                    _last_transient = e
+                    delay = min(backoff_base * (2 ** _attempt), backoff_max)
+                    logger.error(
+                        f"Gemini HTTP {e.code} (transient): {e}, retrying in {delay:.1f}s "
+                        f"({_attempt + 1}/{retry})"
+                    )
+                    await asyncio.sleep(delay)
+                    continue
                 if await self._handle_api_error(e, keys):
                     continue
                 break
+            except (LLMTransientError, EmptyModelOutputError) as e:
+                _last_transient = e
+                delay = min(backoff_base * (2 ** _attempt), backoff_max)
+                logger.error(
+                    f"Gemini transient error ({type(e).__name__}): {e}, "
+                    f"retrying in {delay:.1f}s ({_attempt + 1}/{retry})"
+                )
+                await asyncio.sleep(delay)
+                continue
+            except LLMContentFilteredError:
+                # Content policy rejection — same-provider retry is futile.
+                # Re-raise so caller can fall back to a different provider.
+                raise
 
+        if _last_transient is not None:
+            raise LLMTransientError(
+                f"Gemini request failed after {retry} retries: {_last_transient}"
+            )
         raise Exception("请求失败。")
 
     async def text_chat_stream(
@@ -874,21 +964,66 @@ class ProviderGoogleGenAI(Provider):
         model = model or self.get_model()
 
         payloads = {"messages": context_query, "model": model}
+        # Merge custom_extra_body from WebUI provider config (fixes Gemini bug
+        # where extra_body settings like temperature/top_p were ignored)
+        import json as _json
+        custom_extra_body = self.provider_config.get("custom_extra_body", {})
+        if isinstance(custom_extra_body, dict):
+            for k, v in custom_extra_body.items():
+                if isinstance(v, str) and (
+                    v.strip().startswith("{") or v.strip().startswith("[")
+                ):
+                    try:
+                        v = _json.loads(v)
+                    except _json.JSONDecodeError:
+                        pass
+                payloads[k] = v
+        # Forward generation parameters from kwargs into payloads
+        for _gen_key in (
+            "temperature", "top_p", "topP", "top_k", "topK",
+            "max_tokens", "maxOutputTokens",
+            "frequency_penalty", "frequencyPenalty",
+            "presence_penalty", "presencePenalty",
+            "stop", "stopSequences", "stop_sequences",
+            "seed", "logprobs", "response_logprobs", "responseLogprobs",
+        ):
+            if _gen_key in kwargs:
+                payloads[_gen_key] = kwargs[_gen_key]
         if func_tool and not func_tool.empty():
             payloads["tool_choice"] = tool_choice
 
-        retry = 10
+        retry = int(self.provider_config.get("retry_max", 3) or 3)
+        backoff_base = float(self.provider_config.get("retry_backoff_base", 1.0) or 1.0)
+        backoff_max = 30.0
         keys = self.api_keys.copy()
 
-        for _ in range(retry):
+        for _attempt in range(retry):
             try:
                 async for response in self._query_stream(payloads, func_tool):
                     yield response
                 break
             except APIError as e:
+                if getattr(e, "code", None) in (500, 502, 503, 504):
+                    delay = min(backoff_base * (2 ** _attempt), backoff_max)
+                    logger.error(
+                        f"Gemini stream HTTP {e.code} (transient): {e}, "
+                        f"retrying in {delay:.1f}s ({_attempt + 1}/{retry})"
+                    )
+                    await asyncio.sleep(delay)
+                    continue
                 if await self._handle_api_error(e, keys):
                     continue
                 break
+            except (LLMTransientError, EmptyModelOutputError) as e:
+                delay = min(backoff_base * (2 ** _attempt), backoff_max)
+                logger.error(
+                    f"Gemini stream transient error ({type(e).__name__}): {e}, "
+                    f"retrying in {delay:.1f}s ({_attempt + 1}/{retry})"
+                )
+                await asyncio.sleep(delay)
+                continue
+            except LLMContentFilteredError:
+                raise
 
     async def get_models(self):
         try:

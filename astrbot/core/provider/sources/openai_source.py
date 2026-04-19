@@ -33,7 +33,11 @@ from astrbot.core.agent.message import (
     TextPart,
 )
 from astrbot.core.agent.tool import ToolSet
-from astrbot.core.exceptions import EmptyModelOutputError
+from astrbot.core.exceptions import (
+    EmptyModelOutputError,
+    LLMContentFilteredError,
+    LLMTransientError,
+)
 from astrbot.core.message.message_event_result import MessageChain
 from astrbot.core.provider.entities import LLMResponse, TokenUsage, ToolCallsResult
 from astrbot.core.utils.astrbot_path import get_astrbot_temp_path
@@ -877,10 +881,18 @@ class ProviderOpenAIOfficial(Provider):
                 if tool_call.type != "function":
                     continue
                 # workaround for #1454
-                if isinstance(tool_call.function.arguments, str):
-                    args = json.loads(tool_call.function.arguments)
-                else:
-                    args = tool_call.function.arguments
+                try:
+                    if isinstance(tool_call.function.arguments, str):
+                        args = json.loads(tool_call.function.arguments)
+                    else:
+                        args = tool_call.function.arguments
+                except json.JSONDecodeError:
+                    # 模型返回了截断/畸形的工具调用参数，跳过此工具调用
+                    logger.warning(
+                        f"跳过畸形工具调用 {tool_call.function.name}: "
+                        f"参数 JSON 解析失败 (arguments={tool_call.function.arguments!r})"
+                    )
+                    continue
                 args_ls.append(args)
                 func_name_ls.append(tool_call.function.name)
                 tool_call_ids.append(tool_call.id)
@@ -1119,9 +1131,44 @@ class ProviderOpenAIOfficial(Provider):
         if "tool" in str(e).lower() and "support" in str(e).lower():
             logger.error("疑似该模型不支持函数调用工具调用。请输入 /tool off_all")
 
+        # Transient server/network errors — exp backoff + retry same key/provider.
+        # Covers: 502/503/504 HTTP errors, connection resets, timeouts.
+        is_transient = (
+            is_connection_error(e)
+            or isinstance(e, asyncio.TimeoutError)
+            or any(code in str(e) for code in ("502", "503", "504"))
+            or "timeout" in str(e).lower()
+            or "deadline" in str(e).lower()
+        )
+        if is_transient and retry_cnt < max_retries - 1:
+            backoff_base = float(self.provider_config.get("retry_backoff_base", 1.0) or 1.0)
+            delay = min(backoff_base * (2 ** retry_cnt), 30.0)
+            logger.error(
+                f"OpenAI transient error ({type(e).__name__}): {str(e)[:300]}, "
+                f"retrying in {delay:.1f}s ({retry_cnt + 1}/{max_retries})"
+            )
+            if is_connection_error(e):
+                proxy = self.provider_config.get("proxy", "")
+                log_connection_failure("OpenAI", e, proxy)
+            await asyncio.sleep(delay)
+            return (
+                False,
+                chosen_key,
+                available_api_keys,
+                payloads,
+                context_query,
+                func_tool,
+                image_fallback_used,
+            )
+
         if is_connection_error(e):
             proxy = self.provider_config.get("proxy", "")
             log_connection_failure("OpenAI", e, proxy)
+
+        # Final failure after exhausting retries — wrap transient errors in
+        # LLMTransientError so upstream fallback logic can route to next provider.
+        if is_transient:
+            raise LLMTransientError(f"OpenAI transient failure: {e}") from e
 
         raise e
 
@@ -1155,7 +1202,7 @@ class ProviderOpenAIOfficial(Provider):
             payloads["tool_choice"] = tool_choice
 
         llm_response = None
-        max_retries = 10
+        max_retries = int(self.provider_config.get("retry_max", 10) or 10)
         available_api_keys = self.api_keys.copy()
         chosen_key = random.choice(available_api_keys)
         image_fallback_used = False
@@ -1167,6 +1214,9 @@ class ProviderOpenAIOfficial(Provider):
                 self.client.api_key = chosen_key
                 llm_response = await self._query(payloads, func_tool)
                 break
+            except LLMContentFilteredError:
+                # Content policy — don't retry same provider, propagate up
+                raise
             except Exception as e:
                 last_exception = e
                 (

@@ -21,6 +21,12 @@ AstrBot Agentic RPG plugin — a text-based RPG engine for the AstrBot chatbot f
 
 所有代码修改只在开发位置进行，打包注入位置是运行时副本，不要直接修改。
 
+**重要：禁止直接读取Astrbot原始log**
+- **Astrbot默认生成的log位置：`E:\agentic-rpg\AstrBot\data\logs`
+禁止直接从该文件夹获取log。log中包含了巨量的文本，会造成大量的token浪费。
+只能读取`E:\agentic-rpg\AstrBot\log`中的log。
+该log由用户筛选过。当你认为需要补充log时，先提出要求，由用户为你筛选。
+
 Plugin at `data/plugins/astrbot_plugin_agentic_RPG/`, Skills at `data/skills/rpg-*/`.
 - Python 3.10+, package manager: `uv`
 - Install deps: `uv sync` (6-7 min, never cancel)
@@ -88,15 +94,34 @@ Plugin at `data/plugins/astrbot_plugin_agentic_RPG/`, Skills at `data/skills/rpg
 
 ### Tool Return Value Pattern
 
-**All LLM tools return `json.dumps({...}, ensure_ascii=False)`**. The Skills teach the LLM how to narrate each type of JSON result. Tools NEVER return pre-formatted user-facing text.
+**All LLM tools MUST return via the unified envelope helpers in `core/tool_response.py`** (`tool_ok` / `tool_err` / `tool_ok_raw`). The envelope is the single signal `tool_executor` uses to distinguish tool-execution failure (retry) from game-mechanic outcome (narrate). The Skills teach the LLM how to narrate each type of JSON result. Tools NEVER return pre-formatted user-facing text.
+
+**Envelope format:**
+```json
+{"ok": true,  "data": {...business fields...}}
+{"ok": false, "error": "human-readable reason", "data": {...optional hints...}}
+```
 
 ```python
-# CORRECT: return structured data, let Skill guide narration
-return json.dumps({"roll": 14, "modifier": 2, "total": 16, "dc": 15, "success": True})
+from .core.tool_response import tool_ok, tool_err
+
+# Tool-execution succeeded — data carries all business fields
+return tool_ok(roll=14, total=16, dc=15, success=True)
+# → {"ok": true, "data": {"roll": 14, "total": 16, "dc": 15, "success": true}}
+
+# Tool-execution failed (semantic error — LLM should retry with fixed args)
+return tool_err("当前区域未找到NPC: 张三", available=["李四", "王五"])
+# → {"ok": false, "error": "...", "data": {"available": [...]}}
 
 # WRONG: return formatted text (bypasses Skills narration protocol)
 return "1d20(14) + 2 = 16 vs DC 15 → success"
 ```
+
+**Key rule: game-mechanic "failure" is NOT a tool failure.** `perform_skill_check` rolling a 2, `execute_combat_round` missing an attack, `execute_trade` running out of money — these are legitimate outcomes the LLM must narrate. They go in `data` with `ok=true`. Only use `tool_err` when the tool itself cannot run (entity not found, DB write failed, bad args that the LLM should fix and retry).
+
+**Workflow dataclasses** (`SkillCheckResult`, `AttackResult`, etc.) wrap `asdict(self)` via `tool_ok_raw(asdict(self))` in their `to_json_str()`.
+
+`tool_executor` auto-unwraps `data` into `entry.result` on success, so downstream consumers (`narrative_package` etc.) keep reading flat fields like `entry.result["npc_name"]` without caring about the envelope.
 
 ### Key Identifiers
 
@@ -216,6 +241,19 @@ After Skills extraction, prompts.yaml only keeps **dynamic templates** (need run
     - **语义层（工具内部）**：对 LLM 提供的参数进行严格校验，不猜测、不兜底。NPC 名在当前区域找不到就返回明确错误（"当前区域未找到NPC: XXX"），不要静默跳过或模糊匹配到其他实体。错误信息必须可操作——告诉 LLM 哪个参数错了、期望什么值、当前有哪些有效选项——使其能自行修正并重新调用。
     - **格式层（plugin/workflow）**：对 LLM 传入的格式问题（双重 JSON 编码、字符串类型的数字、多余空格）做静默修正，因为这些是传输层问题而非 LLM 意图错误。
     - 核心原则：假设 LLM **一定会**传错参数——但区分「传错了什么」和「传的格式不对」。前者需要 LLM 自行修正，后者由 plugin 代为处理。
+13. **信息完整性优先于 token 预算** — 注入给 LLM 的玩家状态、NPC 上下文、委托信息、KB 搜索结果、近期事件等核心叙事/决策信息**禁止硬性截断或设置 token 上限**。信息丢失导致的 LLM 误判 + Stage 3 重试成本（每次 6000+ prompt tokens）远超过多注入 200-500 tokens 的成本。如果担心上下文过长，优化结构/去重/换更精简表达，不要靠 `[:N]` 截断、`max_chars` 硬上限、"前 N 条然后省略"。例外：真正的大数据集（全部 L2 记忆、全 KB 文档）用分页/检索是正确的，但单个互动 NPC 的 events、单个玩家的 status、单次 KB 搜索的全部命中，必须全量注入。
+
+14. **工具返回格式统一信封** — 所有 `@filter.llm_tool` 必须通过 `core/tool_response.py` 的 helper 返回，单一真相:
+
+    - `tool_ok(**data)` — 工具执行成功。所有业务字段（包括游戏机制的 `success`/`hit`/`leveled_up`）放进 kwargs。
+    - `tool_err(error, **extras)` — 工具执行失败。`error` 人类可读描述原因；`extras` 变成 `data` 字段（如 `available=[...]`）供 LLM 修正重试。
+    - `tool_ok_raw(dict)` — workflow dataclass `to_json_str()` 专用，直接包 `asdict(self)`。
+
+    **关键语义边界**:
+    - 工具执行层 = `ok` 字段（tool_executor 唯一识别的失败信号）。
+    - 游戏机制层 = `data` 里的业务字段（`success`/`hit` 等）。**投骰失败、攻击 miss、钱不够不是工具失败** — 返回 `tool_ok(success=False, ...)`，让叙事 LLM 解读并呈现。
+
+    **禁止**在工具返回中混用 `error`/`errors`/`status`/`success`（作为顶层字段）等旧信号。tool_executor 对不符合信封的返回不识别失败，所有"看似失败"的旧格式都会被当成成功传递给 LLM。
 
 
 ## AstrBot API Quick Reference
@@ -252,9 +290,11 @@ class MyPlugin(star.Star):
 - **原因**：部分模型 API (如 `gte-rerank-v2` / `bge-reranker-v2-m3`) 不返回标准的 `index` 字段，或者将其包含在 `document_index` 或 `document.index` 中。底层代码在找不到 `index` 时，会使用当前遍历的序号 `idx` 临时回退。这会导致：新出炉的高分数会被强行套用原本在向量数据库里排第一的文档的顺序，使得排序结果与最初 FAISS 给的一模一样，导致重定向无效。同时对于 `vllm_rerank_source.py`，存在硬编码 `/v1/rerank` URL导致 404 问题。
 - **修复措施**：在 `_parse_results`（Bailian）和 `rerank`（VLLM）中加入了深层键值探测与日志警告系统，并增强了 URL 末尾拼接验证，如果后续 AstrBot 官方升级覆盖了 `bailian_rerank_source.py` 以及 `vllm_rerank_source.py` 必须重新补齐这一容错解析算法。
 
-**2. Gemini Provider (Google GenAI 原生) 参数无响应 Bug (确认存在，待修复)**  
+**2. Gemini Provider (Google GenAI 原生) 参数无响应 Bug (已修复)**  
+- **文件**：`astrbot/core/provider/sources/gemini_source.py`
 - **状况**：修改后台中的生成温度 (`temperature`)、`top_p` 等 `extra_body` 参数无法对其产生影响。
-- **原因**：审查 `gemini_source.py` 可以发现，其内部的 `text_chat` / `text_chat_stream` 方法接收了包含各种配置的 `**kwargs` 参数，但是在往下层 API 构建 `payloads` 发起网络请求时，使用的是手动定死的组装 `payloads = {"messages": context_query, "model": model}`，从而使得 `**kwargs` （包含外部注入的环境温度与自定义 config）在真正进入到 `_prepare_query_config` 前就被硬生生地遗弃了。
+- **原因**：`gemini_source.py` 的 `text_chat` / `text_chat_stream` 从未读取 `self.provider_config.get("custom_extra_body")`，导致 WebUI 中配置的 `extra_body` 永远不生效（OpenAI/Anthropic provider 都有此逻辑，唯独 Gemini 遗漏）。之前的 kwargs 转发修复只覆盖了调用方显式传参的场景，未覆盖 WebUI extra_body 路径。
+- **修复措施**：在 `text_chat` 和 `text_chat_stream` 构建 payloads 后，显式读取 `self.provider_config.get("custom_extra_body", {})` 并合并到 payloads（支持 JSON 字符串值自动解析）。这样 `_query` / `_query_stream` 中的 `payloads.get("temperature", 0.7)` 就能拿到 WebUI 配置值。如果后续 AstrBot 官方升级覆盖了 `gemini_source.py`，必须重新补齐 custom_extra_body 合并逻辑 + kwargs 转发循环。
 
 **3. Grok/XAI Provider 失效无效 Bug (确认存在，待修复)**
 - **状况**：调用 Grok 模型提供商直接显示无效或报错。
@@ -279,6 +319,18 @@ class MyPlugin(star.Star):
 - **文件**：`astrbot/core/provider/manager.py`
 - **状况**：WebUI 更新 Provider 设置（如 modalities 加入 `tool_use`）时，只更新了 default config。其他 config profile 保持旧值，导致非 default config 的 LLM 请求中 `modalities` 不含 `tool_use`，所有插件工具被 `_modalities_fix` 静默清空（`req.func_tool = None`）。
 - **修复措施**：`update_provider()`、`create_provider()`、`delete_provider()` 三个方法改为遍历 `self.acm.confs` 中所有 config 进行同步操作，而非只操作 `self.acm.default_conf`。如果后续 AstrBot 官方升级覆盖了 `provider/manager.py`，必须检查此修复是否被保留。
+
+**8. Provider 瞬时错误缺少重试与类型化异常 (已修复)**
+- **文件**：`astrbot/core/exceptions.py` + `astrbot/core/provider/sources/gemini_source.py` + `astrbot/core/provider/sources/openai_source.py`
+- **状况**：
+  - Gemini PROHIBITED_CONTENT/SAFETY/BLOCKLIST/SPII 以及空 candidates 一律 raise 通用 `Exception`，上层无法区分"可重试瞬时错误"与"不可重试内容过滤错误"，无法进行 provider fallback。
+  - 504/503/502/timeout/connection 错误无自动重试，直接异常。
+  - retry count 硬编码 10，backoff 只对 429 生效且为 1s 平退避。
+- **修复措施**：
+  - `exceptions.py` 新增 `LLMContentFilteredError`（内容过滤，不可同 provider 重试）和 `LLMTransientError`（瞬时错误，可重试）。
+  - `gemini_source.py` 的 `_process_content_parts` 将 PROHIBITED_CONTENT/SAFETY/BLOCKLIST/SPII/IMAGE_SAFETY 改 raise `LLMContentFilteredError`；空 candidates 改 raise `LLMTransientError`。主循环（`text_chat` + `text_chat_stream`）对 `LLMTransientError`、`EmptyModelOutputError` 及 APIError 500/502/503/504 做 exp backoff（1s、2s、4s... 上限 30s），`LLMContentFilteredError` 直接上抛让 plugin 做 fallback。`retry_max` + `retry_backoff_base` 改读 `provider_config`。
+  - `openai_source.py` 的 `_handle_api_error` 对 502/503/504/timeout/connection error 增加 exp backoff + return tuple 让主循环重试；同时在最终失败时若是瞬时错误则包装成 `LLMTransientError` 抛出。`max_retries` 改读 `provider_config.get("retry_max", 10)`。主循环对 `LLMContentFilteredError` 不拦截，直接上抛。
+- 如果后续 AstrBot 官方升级覆盖了这三个文件，必须重新补齐类型化异常 + exp backoff 逻辑。
 
 ## Skill routing
 
