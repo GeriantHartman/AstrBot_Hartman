@@ -37,3 +37,22 @@ class LLMTransientError(AstrBotError):
     and should fall back to a different provider.
     """
 
+
+
+class KnowledgeBaseUploadError(AstrBotError):
+    """Raised when knowledge base upload fails with a user-facing message."""
+
+    def __init__(
+        self,
+        *,
+        stage: str,
+        user_message: str,
+        details: dict | None = None,
+    ) -> None:
+        super().__init__(user_message)
+        self.stage = stage
+        self.user_message = user_message
+        self.details = details or {}
+
+    def __str__(self) -> str:
+        return self.user_message
