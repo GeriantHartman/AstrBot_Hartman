@@ -346,8 +346,9 @@ const headers = [
 const loadDocuments = async () => {
   loading.value = true
   try {
+    // page_size=10000 一次性拉全：后端默认 page_size=100 会截断；v-data-table 只做前端分页
     const response = await axios.get('/api/kb/document/list', {
-      params: { kb_id: props.kbId }
+      params: { kb_id: props.kbId, page: 1, page_size: 10000 }
     })
     if (response.data.status === 'ok') {
       documents.value = response.data.data.items || []
