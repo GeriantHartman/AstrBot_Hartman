@@ -442,7 +442,7 @@ class ProviderOpenAIOfficial(Provider):
             image_fallback_used,
         )
 
-    def _create_http_client(self, provider_config: dict) -> httpx.AsyncClient | None:
+    def _create_http_client(self, provider_config: dict) -> httpx.AsyncClient:
         """创建带代理的 HTTP 客户端"""
         proxy = provider_config.get("proxy", "")
         return create_proxy_client("OpenAI", proxy)
@@ -523,6 +523,42 @@ class ProviderOpenAIOfficial(Provider):
         except NotFoundError as e:
             raise Exception(f"获取模型列表失败：{e}")
 
+    @staticmethod
+    def _sanitize_assistant_messages(payloads: dict) -> None:
+        """在请求发送前过滤/规范化空的 assistant 消息。
+
+        严格 API（Moonshot、DeepSeek Reasoner 等）会在 assistant 消息同时缺少
+        ``content`` 和 ``tool_calls`` 时返回 400。把 ``""`` / ``None`` / ``[]``
+        都视作空内容：无 tool_calls 时整条过滤掉；有 tool_calls 时将 content
+        设为 ``None`` 以符合 OpenAI 规范。就地修改 ``payloads["messages"]``。
+        """
+        messages = payloads.get("messages")
+        if not isinstance(messages, list):
+            return
+
+        def _is_empty(content: Any) -> bool:
+            return content is None or content == "" or content == []
+
+        cleaned: list[Any] = []
+        for idx, msg in enumerate(messages):
+            if not isinstance(msg, dict) or msg.get("role") != "assistant":
+                cleaned.append(msg)
+                continue
+
+            content = msg.get("content")
+            tool_calls = msg.get("tool_calls")
+
+            if _is_empty(content) and not tool_calls:
+                logger.warning(f"过滤第 {idx} 条空 assistant 消息 (无工具调用)")
+                continue
+
+            if _is_empty(content) and tool_calls:
+                msg["content"] = None
+
+            cleaned.append(msg)
+
+        payloads["messages"] = cleaned
+
     async def _query(self, payloads: dict, tools: ToolSet | None) -> LLMResponse:
         if tools:
             model = payloads.get("model", "").lower()
@@ -563,26 +599,7 @@ class ProviderOpenAIOfficial(Provider):
         model = payloads.get("model", "").lower()
         logger.info(f"[OpenAI Request] model: {model}, payloads: {json.dumps(payloads, ensure_ascii=False)}, extra_body: {json.dumps(extra_body, ensure_ascii=False)}")
 
-        if "messages" in payloads and isinstance(payloads["messages"], list):
-            cleaned_messages = []
-            for idx, msg in enumerate(payloads["messages"]):
-                # 过滤空的 assistant 消息，防止严格 API（如 Moonshot）返回 400 错误
-                if msg.get("role") == "assistant":
-                    content = msg.get("content")
-                    tool_calls = msg.get("tool_calls")
-
-                    # 情况1: 空/null content 且无 tool_calls -> 过滤掉
-                    if not tool_calls and (content == "" or content is None):
-                        logger.warning(f"过滤第 {idx} 条空 assistant 消息 (无工具调用)")
-                        continue
-
-                    # 情况2: 空 content 但有 tool_calls -> 设为 None (符合 OpenAI 规范)
-                    if content == "" and tool_calls:
-                        msg["content"] = None
-
-                cleaned_messages.append(msg)
-
-            payloads["messages"] = cleaned_messages
+        self._sanitize_assistant_messages(payloads)
 
         completion = await self.client.chat.completions.create(
             **payloads,
@@ -647,6 +664,8 @@ class ProviderOpenAIOfficial(Provider):
         model = payloads.get("model", "").lower()
         logger.info(f"[OpenAI Stream Request] model: {model}, payloads: {json.dumps(payloads, ensure_ascii=False)}, extra_body: {json.dumps(extra_body, ensure_ascii=False)}")
 
+        self._sanitize_assistant_messages(payloads)
+
         stream = await self.client.chat.completions.create(
             **payloads,
             stream=True,
@@ -680,6 +699,8 @@ class ProviderOpenAIOfficial(Provider):
             reasoning = self._extract_reasoning_content(chunk)
             _y = False
             llm_response.id = chunk.id
+            llm_response.reasoning_content = ""
+            llm_response.completion_text = ""
             if reasoning:
                 llm_response.reasoning_content = reasoning
                 _y = True
@@ -990,6 +1011,11 @@ class ProviderOpenAIOfficial(Provider):
         """Finally convert the payload. Such as think part conversion, tool inject."""
         model = payloads.get("model", "").lower()
         is_gemini = "gemini" in model
+        deepseek_reasoning_models = {"deepseek-v4-pro", "deepseek-v4-flash"}
+        is_deepseek_v4_reasoning = (
+            model in deepseek_reasoning_models
+            or "api.deepseek.com" in self.client.base_url.host
+        )
 
         for message in payloads.get("messages", []):
             if message.get("role") == "assistant" and isinstance(
@@ -1005,7 +1031,14 @@ class ProviderOpenAIOfficial(Provider):
                 # Some providers (Grok, etc.) reject empty content lists.
                 # When all parts were think blocks, fall back to None.
                 message["content"] = new_content or None
-                if reasoning_content:
+                if is_deepseek_v4_reasoning and not reasoning_content:
+                    logger.info(
+                        "Deepseek v4 model requires non-empty reasoning content, but got empty. Setting to 'none' to satisfy the requirement."
+                    )
+                    # Deepseek models require the field on assistant
+                    # history messages, even when the reasoning content is empty.
+                    message["reasoning_content"] = "none"
+                elif reasoning_content:
                     message["reasoning_content"] = reasoning_content
 
             # Gemini 的 function_response 要求 google.protobuf.Struct（即 JSON 对象），
