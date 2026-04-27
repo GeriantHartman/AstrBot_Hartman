@@ -1011,35 +1011,62 @@ class ProviderOpenAIOfficial(Provider):
         """Finally convert the payload. Such as think part conversion, tool inject."""
         model = payloads.get("model", "").lower()
         is_gemini = "gemini" in model
-        deepseek_reasoning_models = {"deepseek-v4-pro", "deepseek-v4-flash"}
+        # Use substring match, not strict equality — real-world model strings
+        # often carry prefixes (e.g. "deepseek/deepseek-v4-pro" via OpenRouter-
+        # style routing, or custom provider_id concatenation) or dated suffixes
+        # ("deepseek-v4-pro-2024-12-01"). A strict set-membership check misses
+        # all of those and leaves is_deepseek_v4_reasoning=False, which in turn
+        # skips the mandatory `reasoning_content` field and gets rejected with
+        # "The reasoning_content in the thinking mode must be passed back".
+        deepseek_reasoning_patterns = (
+            "deepseek-v4-pro",
+            "deepseek-v4-flash",
+            "deepseek-reasoner",
+        )
+        host = ""
+        try:
+            host = str(self.client.base_url.host or "").lower()
+        except Exception:
+            host = ""
         is_deepseek_v4_reasoning = (
-            model in deepseek_reasoning_models
-            or "api.deepseek.com" in self.client.base_url.host
+            any(p in model for p in deepseek_reasoning_patterns)
+            or "api.deepseek.com" in host
+            or "deepseek" in host
         )
 
         for message in payloads.get("messages", []):
-            if message.get("role") == "assistant" and isinstance(
-                message.get("content"), list
-            ):
-                reasoning_content = ""
-                new_content = []  # not including think part
-                for part in message["content"]:
-                    if part.get("type") == "think":
-                        reasoning_content += str(part.get("think"))
-                    else:
-                        new_content.append(part)
-                # Some providers (Grok, etc.) reject empty content lists.
-                # When all parts were think blocks, fall back to None.
-                message["content"] = new_content or None
-                if is_deepseek_v4_reasoning and not reasoning_content:
+            if message.get("role") == "assistant":
+                content = message.get("content")
+                if isinstance(content, list):
+                    reasoning_content = ""
+                    new_content = []  # not including think part
+                    for part in content:
+                        if isinstance(part, dict) and part.get("type") == "think":
+                            reasoning_content += str(part.get("think"))
+                        else:
+                            new_content.append(part)
+                    # Some providers (Grok, etc.) reject empty content lists.
+                    # When all parts were think blocks, fall back to None.
+                    message["content"] = new_content or None
+                    if reasoning_content:
+                        message["reasoning_content"] = reasoning_content
+                    elif is_deepseek_v4_reasoning and "reasoning_content" not in message:
+                        logger.info(
+                            "Deepseek v4 thinking: empty reasoning on list-content "
+                            "assistant message; setting reasoning_content='none'."
+                        )
+                        message["reasoning_content"] = "none"
+                elif is_deepseek_v4_reasoning and "reasoning_content" not in message:
+                    # String or None content — assistant message carries no ThinkPart
+                    # (e.g. restored from persisted conversation history, or from a
+                    # non-thinking turn inside a thinking-mode session). DeepSeek V4
+                    # still requires the field on every assistant history message, so
+                    # stamp the placeholder.
                     logger.info(
-                        "Deepseek v4 model requires non-empty reasoning content, but got empty. Setting to 'none' to satisfy the requirement."
+                        "Deepseek v4 thinking: string-content assistant message "
+                        "missing reasoning_content; setting to 'none'."
                     )
-                    # Deepseek models require the field on assistant
-                    # history messages, even when the reasoning content is empty.
                     message["reasoning_content"] = "none"
-                elif reasoning_content:
-                    message["reasoning_content"] = reasoning_content
 
             # Gemini 的 function_response 要求 google.protobuf.Struct（即 JSON 对象），
             # 纯文本会触发 400 Invalid argument，需要包一层 JSON。

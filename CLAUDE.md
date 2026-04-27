@@ -332,6 +332,19 @@ class MyPlugin(star.Star):
   - `openai_source.py` 的 `_handle_api_error` 对 502/503/504/timeout/connection error 增加 exp backoff + return tuple 让主循环重试；同时在最终失败时若是瞬时错误则包装成 `LLMTransientError` 抛出。`max_retries` 改读 `provider_config.get("retry_max", 10)`。主循环对 `LLMContentFilteredError` 不拦截，直接上抛。
 - 如果后续 AstrBot 官方升级覆盖了这三个文件，必须重新补齐类型化异常 + exp backoff 逻辑。
 
+**9. DeepSeek V4 思考模式 `reasoning_content` 强制字段注入缺失 (已修复)**
+- **文件**：`astrbot/core/provider/sources/openai_source.py`（`_finally_convert_payload`）
+- **错误信号**：`BadRequestError 400 - "The reasoning_content in the thinking mode must be passed back to the API."`
+- **状况（两个并列的 bug，同时触发）**：
+  - (A) 模型名检测太严苛：`model in {"deepseek-v4-pro", "deepseek-v4-flash"}` 用集合**等值**匹配，遇到 `"deepseek/deepseek-v4-pro"`（OpenRouter 风格前缀）或 `"deepseek-v4-pro-2024-12-01"`（带日期后缀）直接 miss，`is_deepseek_v4_reasoning=False`。若此时 `base_url.host` 也不含 `api.deepseek.com`（例如走 Cloudflare AI Gateway 或 OpenRouter），就完全落入失效分支。
+  - (B) 注入分支只认 list-content：仅 `isinstance(message.get("content"), list)` 分支会写 `reasoning_content`。从 DB 还原的 assistant 消息、或任何一轮没有 ThinkPart 的助手文本，其 content 是 string/None，这一整块都被跳过——DeepSeek 拿到"没有 reasoning_content"的历史消息直接 400。
+- **修复措施**：
+  - 模型名改为**子串匹配**列表 `("deepseek-v4-pro", "deepseek-v4-flash", "deepseek-reasoner")`，并放宽 host 检查到包含 `deepseek` 即可。
+  - `_finally_convert_payload` 的 assistant 循环展开成两个分支：
+    - `isinstance(content, list)`：原有行为 + 幂等化（只在缺字段时补），且 list 里元素加 `isinstance(part, dict)` 保护。
+    - 其它（string / None）：当 `is_deepseek_v4_reasoning` 为真且消息尚无 `reasoning_content` 时，直接 `message["reasoning_content"] = "none"` 占位，info 日志提示。
+- 如果后续 AstrBot 官方升级覆盖了 `openai_source.py`，必须检查此两处是否保留。验证方法：把 deepseek-v4-pro 模型走任意 OpenAI 兼容 provider（带 `provider/` 前缀或自定义 base_url），连续多轮 tool-loop，不应再报 `reasoning_content must be passed back` 400。
+
 ## Skill routing
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill
