@@ -155,6 +155,7 @@ DEFAULT_CONFIG = {
         "tool_schema_mode": "full",
         "tool_calls_history_mode": "full",  # "full", "compress", or "remove"
         "dynamic_tool_reduction": False,
+        "discard_tool_call_briefings": False,
         "llm_safety_mode": True,
         "safety_mode_strategy": "system_prompt",  # TODO: llm judge
         "file_extract": {
@@ -2816,6 +2817,9 @@ CONFIG_METADATA_2 = {
                     "dynamic_tool_reduction": {
                         "type": "bool",
                     },
+                    "discard_tool_call_briefings": {
+                        "type": "bool",
+                    },
                     "file_extract": {
                         "type": "object",
                         "items": {
@@ -3621,6 +3625,14 @@ CONFIG_METADATA_3 = {
                         "description": "多步工具调用中动态缩减工具集",
                         "type": "bool",
                         "hint": "实验性功能。启用后，多步工具调用中的后续步骤只发送已使用的工具，减少 token 开销。",
+                        "condition": {
+                            "provider_settings.agent_runner_type": "local",
+                        },
+                    },
+                    "provider_settings.discard_tool_call_briefings": {
+                        "description": "丢弃工具调用前的中间说明文本",
+                        "type": "bool",
+                        "hint": "启用后，LLM 在调用工具前产生的\"让我先查一下...\"等说明文本将被丢弃，不会拼接到最终回复中。适合 RPG 沉浸式叙事场景。",
                         "condition": {
                             "provider_settings.agent_runner_type": "local",
                         },

@@ -190,23 +190,23 @@ class ConversationCommands:
         message.set_result(MessageEventResult().message(ret))
 
     async def stop(self, message: AstrMessageEvent) -> None:
-        """停止当前会话正在运行的 Agent"""
-        cfg = self.context.get_config(umo=message.unified_msg_origin)
-        agent_runner_type = cfg["provider_settings"]["agent_runner_type"]
+        """硬中止当前会话正在运行的 Agent。响应不会发送给用户，也不会保存到历史记录。"""
         umo = message.unified_msg_origin
 
-        if agent_runner_type in THIRD_PARTY_AGENT_RUNNER_KEY:
-            stopped_count = active_event_registry.stop_all(umo, exclude=message)
-        else:
-            stopped_count = active_event_registry.request_agent_stop_all(
-                umo,
-                exclude=message,
-            )
+        # 硬停：调用 stop_event() 中断事件传播，同时标记 user_aborted 以跳过保存
+        events = list(active_event_registry._events.get(umo, []))
+        stopped_count = 0
+        for event in events:
+            if event is message:
+                continue
+            event.set_extra("agent_user_aborted", True)
+            event.stop_event()
+            stopped_count += 1
 
         if stopped_count > 0:
             message.set_result(
                 MessageEventResult().message(
-                    f"✅ Requested to stop {stopped_count} running tasks."
+                    f"✅ Stopped {stopped_count} running tasks. Response discarded."
                 )
             )
             return

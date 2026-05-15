@@ -24,7 +24,7 @@ AstrBot Agentic RPG plugin — a text-based RPG engine for the AstrBot chatbot f
 **重要：禁止直接读取Astrbot原始log**
 - **Astrbot默认生成的log位置：`E:\agentic-rpg\AstrBot\data\logs`
 禁止直接从该文件夹获取log。log中包含了巨量的文本，会造成大量的token浪费。
-只能读取`E:\agentic-rpg\AstrBot\log`中的log。
+只能读取`E:\agentic-rpg\AstrBot\log.log`中的log。
 该log由用户筛选过。当你认为需要补充log时，先提出要求，由用户为你筛选。
 
 Plugin at `data/plugins/astrbot_plugin_agentic_RPG/`, Skills at `data/skills/rpg-*/`.
@@ -344,6 +344,25 @@ class MyPlugin(star.Star):
     - `isinstance(content, list)`：原有行为 + 幂等化（只在缺字段时补），且 list 里元素加 `isinstance(part, dict)` 保护。
     - 其它（string / None）：当 `is_deepseek_v4_reasoning` 为真且消息尚无 `reasoning_content` 时，直接 `message["reasoning_content"] = "none"` 占位，info 日志提示。
 - 如果后续 AstrBot 官方升级覆盖了 `openai_source.py`，必须检查此两处是否保留。验证方法：把 deepseek-v4-pro 模型走任意 OpenAI 兼容 provider（带 `provider/` 前缀或自定义 base_url），连续多轮 tool-loop，不应再报 `reasoning_content must be passed back` 400。
+
+**10. 插件注册的静态页面需要 JWT 豁免才能直接打开 (已修复)**
+- **文件**：`astrbot/dashboard/server.py`（`allowed_endpoints` 列表）
+- **状况**：`context.register_web_api(route="/rpg-chat-template-editor", methods=["GET"], ...)` 注册的插件自定义页面最终由 `/api/plug/<path>` 统一分发。`auth_middleware` 对任何 `/api/*` 请求强制 JWT 校验，用户直接在浏览器打开 `http://localhost:6185/api/plug/rpg-chat-template-editor` 会返回 `{"status":"error","message":"未授权","data":null}` 401。夹在 AstrBot 主面板 iframe 里、或手动在浏览器里访问，都会失败。
+- **修复措施**：把插件注册的 **只读静态页面** 路径加入 `allowed_endpoints` 白名单，跳过 JWT。数据读写接口（例如 `/api/plug/rpg-chat-template` GET/POST）仍然需要 JWT，由页面 JS 从 `localStorage.token` 读出后以 `Authorization: Bearer` 头携带。目前已加入：`/api/plug/rpg-chat-template-editor`（Agentic RPG 的 Chat Template 可视化编辑器，历史名 rpg-preset-editor）。未来其它插件若有类似需求，在同一数组里追加。
+- 如果后续 AstrBot 官方升级覆盖了 `server.py`，必须重新补齐这些白名单项，否则插件页面会在浏览器里失去访问。
+
+**11. `_save_to_history` 对 system role 漏识别 `_no_save` (已修复)**
+- **文件**：`astrbot/core/pipeline/process_stage/method/agent_sub_stages/internal.py`（`_save_to_history` 方法）
+- **状况**：`Message._no_save` PrivateAttr 的本意是"这条消息不要写入 conversation 持久化"。AstrBot 自己的 persona_mgr 就依赖它（`persona_mgr.py:395`）。但 `_save_to_history` 的过滤逻辑只在 role 是 `"assistant"` 或 `"user"` 时检查该标记——role=`"system"` 的消息（除了"第一个 system"作为 persona 被单独跳过）**即使带了 `_no_save=True` 也会被保存**。
+- **影响场景**：插件通过 `@filter.on_llm_request` 向 `req.contexts` 注入 chat template 结构时，depth-inject 块（role=system）无法被豁免 → 每轮都持久化 → 下一轮 `build_main_agent` 从 DB 加载 history 时堆积起来，N 轮后 prompt 里有 N 套过时的 system 注入，cache miss + token 爆炸。
+- **修复措施**：把过滤条件从 `if message.role in ["assistant", "user"] and message._no_save:` 改成 `if message._no_save:`（覆盖所有 role）。注意仍保留"跳过首个 system 作为 persona"的现有逻辑在前面。
+- 如果后续 AstrBot 官方升级覆盖了 `internal.py`，必须重新补齐此判断，否则 chat_template 插件的持久化会再次失控。
+
+**12. truncator 按 role 粗分类，无法区分"真实历史"与"插件注入"(已修复)**
+- **文件**：`astrbot/core/agent/message.py` + `astrbot/core/agent/context/truncator.py` + `astrbot/core/provider/sources/openai_source.py` + `astrbot/core/provider/sources/gemini_source.py`
+- **状况**：`ContextTruncator.truncate_by_turns` 的 `_split_system_rest` 把 messages 粗分成 "system（全保留）" + "non-system（按 turn 截取最后 N 对）"。这对纯 AstrBot 场景够用，但**对使用 chat_template 结构的插件破产**——插件在 contexts 头部注入 few-shot（role=user/assistant）时，这些消息会作为"最老的 non-system"首批被截掉。同时插件在 contexts 尾部注入 depth-inject（role=system）会被无条件保留（配合 bug 11 导致堆积）。
+- **修复措施**：引入 `_no_truncate` PrivateAttr（`message.py:199` 附近，同时 `bind_checkpoint_messages` 搬运 dict key→PrivateAttr）。插件在注入 message dict 时设置 `"_no_truncate": True`。`truncator._is_pinned(msg)` 返回 `msg.role == "system" or msg._no_truncate`；`truncate_by_turns` 只对 `not _is_pinned` 的 user/assistant 做 `-N*2` 截断，并按原始 index 顺序重建（pinned 保留原位置，truncatable 填充保留项）。`openai_source.py` / `gemini_source.py` 发送前 `del part["_no_truncate"]` 避免 LLM API 收到未知字段。
+- 如果后续 AstrBot 官方升级覆盖了这 4 个文件之一，必须重新补齐（`_no_truncate` PrivateAttr 定义、model_validate 搬运、`_is_pinned` 三-pool 分类、sources 的 del 字段）。验证方法：在 RPG 插件里打开一个长 session（> `keep_most_recent_turns`），对比第 2 轮和第 20 轮的 OpenAI Request payload，few-shot 段字节必须完全一致。
 
 ## Skill routing
 

@@ -834,6 +834,8 @@ class ProviderGoogleGenAI(Provider):
         for part in context_query:
             if "_no_save" in part:
                 del part["_no_save"]
+            if "_no_truncate" in part:
+                del part["_no_truncate"]
 
         # tool calls result
         if tool_calls_result:
@@ -952,6 +954,8 @@ class ProviderGoogleGenAI(Provider):
         for part in context_query:
             if "_no_save" in part:
                 del part["_no_save"]
+            if "_no_truncate" in part:
+                del part["_no_truncate"]
 
         # tool calls result
         if tool_calls_result:

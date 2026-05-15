@@ -301,6 +301,14 @@ class ToolLoopAgentRunner(BaseAgentRunner[TContext]):
         # sending multiple messages per user input.
         self._pending_text_buffer: list[str] = []
 
+        # If True, intermediate "briefing" text (e.g. "Let me check...") emitted
+        # alongside tool_calls is DISCARDED instead of prepended. Useful for
+        # immersive scenarios (RPG narration) where these briefings break the
+        # fourth wall. Default False preserves existing behavior.
+        self.discard_tool_call_briefings = kwargs.get(
+            "discard_tool_call_briefings", False
+        )
+
         # These two are used for tool schema mode handling
         # We now have two modes:
         # - "full": use full tool schema for LLM calls, default.
@@ -845,15 +853,19 @@ class ToolLoopAgentRunner(BaseAgentRunner[TContext]):
             )
         # 当有工具调用时，缓存中间文本而非立即发送，避免一次用户输入产生多条消息。
         # 缓存的文本会在最终回复（无工具调用）时合并发送。
+        # 若配置了 discard_tool_call_briefings，则直接丢弃，不拼接到最终回复。
         if llm_resp.tools_call_name:
-            # Buffer intermediate text for later
-            intermediate = ""
-            if llm_resp.result_chain and hasattr(llm_resp.result_chain, "plain_text"):
-                intermediate = llm_resp.result_chain.plain_text or ""
-            elif llm_resp.completion_text:
-                intermediate = llm_resp.completion_text
-            if intermediate and intermediate.strip():
-                self._pending_text_buffer.append(intermediate.strip())
+            if not self.discard_tool_call_briefings:
+                # Buffer intermediate text for later
+                intermediate = ""
+                if llm_resp.result_chain and hasattr(
+                    llm_resp.result_chain, "plain_text"
+                ):
+                    intermediate = llm_resp.result_chain.plain_text or ""
+                elif llm_resp.completion_text:
+                    intermediate = llm_resp.completion_text
+                if intermediate and intermediate.strip():
+                    self._pending_text_buffer.append(intermediate.strip())
         else:
             # Final response — flush buffered text + current text.
             # NOTE: _complete_with_assistant_response() was called above, which triggers

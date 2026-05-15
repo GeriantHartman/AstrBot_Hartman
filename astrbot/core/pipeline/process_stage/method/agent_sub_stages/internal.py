@@ -68,6 +68,9 @@ class InternalAgentSubStage(Stage):
             )
             self.tool_schema_mode = "full"
         self.dynamic_tool_reduction: bool = settings.get("dynamic_tool_reduction", False)
+        self.discard_tool_call_briefings: bool = settings.get(
+            "discard_tool_call_briefings", False
+        )
         if isinstance(self.max_step, bool):  # workaround: #2622
             self.max_step = 30
         self.show_tool_use: bool = settings.get("show_tool_use_status", True)
@@ -127,6 +130,7 @@ class InternalAgentSubStage(Stage):
             tool_call_timeout=self.tool_call_timeout,
             tool_schema_mode=self.tool_schema_mode,
             dynamic_tool_reduction=self.dynamic_tool_reduction,
+            discard_tool_call_briefings=self.discard_tool_call_briefings,
             sanitize_context_by_modalities=self.sanitize_context_by_modalities,
             kb_agentic_mode=self.kb_agentic_mode,
             file_extract_enabled=self.file_extract_enabled,
@@ -374,15 +378,24 @@ class InternalAgentSubStage(Stage):
                         )
                     )
 
-                    # 检查事件是否被停止，如果被停止则不保存历史记录
-                    if not event.is_stopped() or agent_runner.was_aborted():
+                    # 用户通过 /stop 主动中止时，不保存任何内容到历史记录（硬中止语义）。
+                    # 其他情况（正常结束、非用户中止的错误）仍然保存。
+                    user_aborted = (
+                        event.get_extra("agent_user_aborted")
+                        or agent_runner.was_aborted()
+                    )
+                    if user_aborted:
+                        logger.info(
+                            "User aborted via /stop, skipping history save."
+                        )
+                    elif not event.is_stopped():
                         await self._save_to_history(
                             event,
                             req,
                             final_resp,
                             agent_runner.run_context.messages,
                             agent_runner.stats,
-                            user_aborted=agent_runner.was_aborted(),
+                            user_aborted=False,
                         )
 
                     asyncio.create_task(
@@ -528,7 +541,10 @@ class InternalAgentSubStage(Stage):
             if message.role == "system" and not skipped_initial_system:
                 skipped_initial_system = True
                 continue
-            if message.role in ["assistant", "user"] and message._no_save:
+            # _no_save now covers every role (plugins inject role=system slots
+            # like chat_template DIRECTOR/CHAR_PACKAGE/SCENARIO that must not
+            # persist into conversation history).
+            if message._no_save:
                 continue
             messages_to_save.append(message)
 

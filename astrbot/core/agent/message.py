@@ -196,6 +196,12 @@ class Message(BaseModel):
     """The ID of the tool call."""
 
     _no_save: bool = PrivateAttr(default=False)
+    # When True, the ContextTruncator.truncate_by_turns routine treats this
+    # message as a fixed chat-template slot (e.g. plugin-injected few-shot or
+    # depth-inject block). It is pinned in place regardless of how many
+    # user/assistant turns of real history exist. Must be passed via dict key
+    # "_no_truncate" during Message.model_validate to set the PrivateAttr.
+    _no_truncate: bool = PrivateAttr(default=False)
     _checkpoint_after: CheckpointData | None = PrivateAttr(default=None)
 
     @model_validator(mode="after")
@@ -320,6 +326,8 @@ def bind_checkpoint_messages(history: list[dict]) -> list[Message]:
         message = Message.model_validate(item)
         if item.get("_no_save"):
             message._no_save = True
+        if item.get("_no_truncate"):
+            message._no_truncate = True
         messages.append(message)
 
     return messages

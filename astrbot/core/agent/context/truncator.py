@@ -97,6 +97,24 @@ class ContextTruncator:
 
         return fixed_messages
 
+    @staticmethod
+    def _is_pinned(msg: Message) -> bool:
+        """Pinned messages are exempt from turn-based truncation.
+
+        Two categories qualify:
+        1. role=system — historical AstrBot behaviour (persona + any system
+           header stays put).
+        2. Plugin-marked ``_no_truncate=True`` — a chat-template slot
+           (few-shot user/assistant demonstration, depth-inject metadata)
+           that must be preserved regardless of how many real turns exist.
+
+        The truncator operates only on the residue (``user``/``assistant``
+        messages without the flag). This lets a plugin keep its template
+        structure stable while AstrBot's config ``keep_most_recent_turns``
+        still bounds the real conversation length.
+        """
+        return msg.role == "system" or getattr(msg, "_no_truncate", False)
+
     def truncate_by_turns(
         self,
         messages: list[Message],
@@ -107,6 +125,11 @@ class ContextTruncator:
         Turn-based truncation strategy, which drops the oldest turns while keeping the most recent N turns.
         A turn consists of a user message and an assistant message.
         This method ensures that the truncated context list conforms to OpenAI's context format.
+
+        Only ``user``/``assistant`` messages without ``_no_truncate`` are
+        counted and trimmed. ``system`` messages and pinned slots preserve
+        their original relative positions (they may appear anywhere in the
+        list — head, tail, or interleaved).
 
         Args:
             messages: The original list of messages in the context.
@@ -119,28 +142,52 @@ class ContextTruncator:
         if keep_most_recent_turns == -1:
             return messages
 
-        system_messages, non_system_messages = self._split_system_rest(messages)
+        # Truncatable (non-pinned) messages in their original order.
+        truncatable = [m for m in messages if not self._is_pinned(m)]
 
-        if len(non_system_messages) // 2 <= keep_most_recent_turns:
+        if len(truncatable) // 2 <= keep_most_recent_turns:
             return messages
 
         num_to_keep = keep_most_recent_turns - drop_turns + 1
         if num_to_keep <= 0:
-            truncated_contexts = []
+            truncatable_kept: list[Message] = []
         else:
-            truncated_contexts = non_system_messages[-num_to_keep * 2 :]
+            truncatable_kept = truncatable[-num_to_keep * 2 :]
 
-        # Find the first user message
+        # Ensure the kept slice starts with a user message (some provider
+        # APIs require user after system). Drops any leading assistant from
+        # the kept window.
         index = next(
-            (i for i, item in enumerate(truncated_contexts) if item.role == "user"),
+            (i for i, item in enumerate(truncatable_kept) if item.role == "user"),
             None,
         )
         if index is not None and index > 0:
-            truncated_contexts = truncated_contexts[index:]
+            truncatable_kept = truncatable_kept[index:]
 
-        result = self._ensure_user_message(
-            system_messages, truncated_contexts, messages
-        )
+        # Rebuild the full list: pinned messages stay in place, truncatable
+        # messages are filtered to the kept set. Relative order preserved.
+        kept_ids = {id(m) for m in truncatable_kept}
+        result: list[Message] = [
+            m for m in messages
+            if self._is_pinned(m) or id(m) in kept_ids
+        ]
+
+        # Safeguard: providers like Zhipu reject contexts with no user
+        # message after the system block. If truncation wiped every
+        # user/assistant, splice the earliest user from the original list
+        # right after the leading pinned block.
+        has_user = any(m.role == "user" for m in result)
+        if not has_user:
+            first_user = next((m for m in messages if m.role == "user"), None)
+            if first_user is not None:
+                insertion = 0
+                for i, m in enumerate(result):
+                    if self._is_pinned(m):
+                        insertion = i + 1
+                    else:
+                        break
+                result.insert(insertion, first_user)
+
         return self.fix_messages(result)
 
     def truncate_by_dropping_oldest_turns(

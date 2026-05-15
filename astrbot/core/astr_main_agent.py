@@ -122,6 +122,11 @@ class MainAgentBuildConfig:
     dynamic_tool_reduction: bool = False
     """When enabled, multi-step tool calls send only previously-used tools
     in subsequent steps to reduce tool schema token overhead."""
+    discard_tool_call_briefings: bool = False
+    """When enabled, the intermediate "briefing" text the LLM emits alongside
+    tool_calls (e.g. "Let me check...") is DISCARDED instead of prepended to the
+    final response. Useful for immersive scenarios (RPG narration) where these
+    briefings break immersion."""
     provider_wake_prefix: str = ""
     """The wake prefix for the provider. If the user message does not start with this prefix,
     the main agent will not be triggered."""
@@ -1398,6 +1403,7 @@ async def build_main_agent(
         compress_batch_size=config.compress_batch_size,
         tool_schema_mode=config.tool_schema_mode,
         dynamic_tool_reduction=config.dynamic_tool_reduction,
+        discard_tool_call_briefings=config.discard_tool_call_briefings,
         fallback_providers=_get_fallback_chat_providers(
             provider, plugin_context, config.provider_settings
         ),

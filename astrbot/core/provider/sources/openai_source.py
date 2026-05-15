@@ -889,6 +889,25 @@ class ProviderOpenAIOfficial(Provider):
         # the priority is higher than the <think> tag extraction
         llm_response.reasoning_content = self._extract_reasoning_content(completion)
 
+        # Fix for DeepSeek-like misrouting: sometimes the model puts the actual
+        # response narrative into reasoning_content while leaving content empty.
+        # If there are no tool_calls and content is empty but reasoning has text,
+        # swap reasoning_content into content so the user actually sees the reply.
+        if (
+            not choice.message.tool_calls
+            and not (llm_response.completion_text or "").strip()
+            and llm_response.reasoning_content.strip()
+        ):
+            logger.warning(
+                "LLM returned empty content with non-empty reasoning_content. "
+                "Swapping reasoning_content into content to avoid blank reply. "
+                f"response_id={completion.id}, reasoning_len={len(llm_response.reasoning_content)}"
+            )
+            llm_response.result_chain = MessageChain().message(
+                llm_response.reasoning_content
+            )
+            llm_response.reasoning_content = ""
+
         # parse tool calls if any
         if choice.message.tool_calls and tools is not None:
             args_ls = []
@@ -987,6 +1006,8 @@ class ProviderOpenAIOfficial(Provider):
         for part in context_query:
             if "_no_save" in part:
                 del part["_no_save"]
+            if "_no_truncate" in part:
+                del part["_no_truncate"]
 
         # tool calls result
         if tool_calls_result:
