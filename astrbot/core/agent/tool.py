@@ -386,5 +386,7 @@ class ToolSet:
             )
             params_str = json.dumps(tool.parameters) if tool.parameters else "{}"
             params_tokens = len(params_str) * 0.3
-            total += name_tokens + desc_tokens + params_tokens + 20  # structural overhead
+            total += (
+                name_tokens + desc_tokens + params_tokens + 20
+            )  # structural overhead
         return int(total)

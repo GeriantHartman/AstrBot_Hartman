@@ -168,8 +168,7 @@ class ContextTruncator:
         # messages are filtered to the kept set. Relative order preserved.
         kept_ids = {id(m) for m in truncatable_kept}
         result: list[Message] = [
-            m for m in messages
-            if self._is_pinned(m) or id(m) in kept_ids
+            m for m in messages if self._is_pinned(m) or id(m) in kept_ids
         ]
 
         # Safeguard: providers like Zhipu reject contexts with no user

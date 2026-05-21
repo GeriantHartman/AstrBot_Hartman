@@ -50,7 +50,7 @@ class BailianRerankProvider(RerankProvider):
 
         self.model = provider_config.get("rerank_model", "qwen3-rerank")
         self.timeout = provider_config.get("timeout", 30)
-        self.return_documents = True # 强制开启，用于排查 index 问题
+        self.return_documents = True  # 强制开启，用于排查 index 问题
         self.instruct = provider_config.get("instruct", "")
         self.instruct = provider_config.get("instruct", "")
 
@@ -154,15 +154,17 @@ class BailianRerankProvider(RerankProvider):
             results = data.get("output", {}).get("results", [])
 
         if not results:
-            logger.warning(f"[Bailian Rerank] 警告：API返回空结果。原始返回数据: {data}")
+            logger.warning(
+                f"[Bailian Rerank] 警告：API返回空结果。原始返回数据: {data}"
+            )
             return []
 
         # 转换为RerankResult对象，使用.get()避免KeyError
         rerank_results = []
-        
+
         if results:
             logger.debug(f"[Bailian Rerank] 原始返回结果第一条示例: {results[0]}")
-            
+
         for idx, result in enumerate(results):
             try:
                 # 首先尝试标准 index 字段 (有些 API 会返回 original_index 或 document.index)
@@ -174,7 +176,9 @@ class BailianRerankProvider(RerankProvider):
                     elif "document" in result and "index" in result["document"]:
                         index = result["document"]["index"]
                     else:
-                        logger.warning(f"[Bailian Rerank] 警告: 无法在结果中找到 index 字段，直接使用顺序 idx={idx}。原始结果: {result}")
+                        logger.warning(
+                            f"[Bailian Rerank] 警告: 无法在结果中找到 index 字段，直接使用顺序 idx={idx}。原始结果: {result}"
+                        )
                         index = idx
 
                 relevance_score = result.get("relevance_score", 0.0)
@@ -253,20 +257,25 @@ class BailianRerankProvider(RerankProvider):
                 response_text = await response.text()
                 logger.info(f"[Bailian Rerank] API响应状态码: {response.status}")
                 if response.status >= 400:
-                    logger.error(f"[Bailian Rerank] API请求失败，返回内容: {response_text}")
+                    logger.error(
+                        f"[Bailian Rerank] API请求失败，返回内容: {response_text}"
+                    )
                 else:
                     logger.debug(f"[Bailian Rerank] API返回内容: {response_text}")
 
                 response.raise_for_status()
-                
+
                 import json
+
                 response_data = json.loads(response_text)
 
                 # 解析结果并记录使用量
                 results = self._parse_results(response_data)
                 self._log_usage(response_data)
 
-                logger.info(f"[Bailian Rerank] 重排序完成，成功返回 {len(results)} 个结果")
+                logger.info(
+                    f"[Bailian Rerank] 重排序完成，成功返回 {len(results)} 个结果"
+                )
 
                 return results
 

@@ -751,9 +751,7 @@ class ToolLoopAgentRunner(BaseAgentRunner[TContext]):
         # do truncate and compress
         token_usage = self.req.conversation.token_usage if self.req.conversation else 0
         tool_schema_overhead = (
-            self.req.func_tool.estimate_token_count()
-            if self.req.func_tool
-            else 0
+            self.req.func_tool.estimate_token_count() if self.req.func_tool else 0
         )
         self._simple_print_message_role("[BefCompact]")
         self.run_context.messages = await self.context_manager.process(

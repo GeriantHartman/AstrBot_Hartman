@@ -1,4 +1,4 @@
-## Setup commands
+﻿## Setup commands
 
 ### Core
 
@@ -32,3 +32,9 @@ Runs on `http://localhost:3000` by default.
 
 1. Title format: use conventional commit messages
 2. Use English to write PR title and descriptions.
+
+## RPG tool analysis
+
+1. Tool analysis reports, stats time windows, and report filenames must use UTC+8.
+2. Keep runtime `TOOL_SKILL_MAP` limited to current real LLM tools. Put legacy aliases only in the tool-analysis skill.
+3. Tool usage analysis counts LLM behavior only; do not count user-triggered `/rpg` built-in commands as LLM tool usage.

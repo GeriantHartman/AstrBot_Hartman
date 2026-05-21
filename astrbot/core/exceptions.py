@@ -38,7 +38,6 @@ class LLMTransientError(AstrBotError):
     """
 
 
-
 class KnowledgeBaseUploadError(AstrBotError):
     """Raised when knowledge base upload fails with a user-facing message."""
 

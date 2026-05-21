@@ -34,7 +34,6 @@ class DiscordViewComponent(BaseMessageComponent):
 
 
 class DiscordPlatformEvent(AstrMessageEvent):
-
     DISCORD_MAX_LENGTH = 2000
     SPLIT_PATTERNS = {
         "paragraph": re.compile(r"\n\n"),
@@ -105,8 +104,14 @@ class DiscordPlatformEvent(AstrMessageEvent):
                         if embeds:
                             kwargs["embeds"] = embeds
                     # reference 只随第一段发送
-                    if idx == 0 and reference_message_id and not self.interaction_followup_webhook:
-                        kwargs["reference"] = self.client.get_message(int(reference_message_id))
+                    if (
+                        idx == 0
+                        and reference_message_id
+                        and not self.interaction_followup_webhook
+                    ):
+                        kwargs["reference"] = self.client.get_message(
+                            int(reference_message_id)
+                        )
                     if kwargs:
                         await send_target.send(**kwargs)
             else:

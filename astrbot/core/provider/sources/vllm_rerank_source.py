@@ -58,8 +58,10 @@ class VLLMRerankProvider(RerankProvider):
 
         assert self.client is not None
         rerank_url = f"{self.base_url}{self.api_suffix}"
-        
-        logger.info(f"[VLLM Rerank] 准备发起请求 | URL={url} | model={self.model} | query_length={len(query)} | docs_count={len(documents)} | top_n={top_n}")
+
+        logger.info(
+            f"[VLLM Rerank] 准备发起请求 | URL={url} | model={self.model} | query_length={len(query)} | docs_count={len(documents)} | top_n={top_n}"
+        )
         logger.debug(f"[VLLM Rerank] 请求载荷 (Payload): {payload}")
 
         try:
@@ -67,13 +69,16 @@ class VLLMRerankProvider(RerankProvider):
                 response_text = await response.text()
                 logger.info(f"[VLLM Rerank] API响应状态码: {response.status}")
                 if response.status >= 400:
-                    logger.error(f"[VLLM Rerank] API请求失败，返回内容: {response_text}")
+                    logger.error(
+                        f"[VLLM Rerank] API请求失败，返回内容: {response_text}"
+                    )
                 else:
                     logger.debug(f"[VLLM Rerank] API返回内容: {response_text}")
 
                 response.raise_for_status()
 
                 import json
+
                 response_data = json.loads(response_text)
                 results = response_data.get("results", [])
 
@@ -93,7 +98,7 @@ class VLLMRerankProvider(RerankProvider):
                                 index = result["document"]["index"]
                             else:
                                 index = idx
-                                
+
                         relevance_score = result.get("relevance_score", 0.0)
                         rerank_results.append(
                             RerankResult(
@@ -104,8 +109,10 @@ class VLLMRerankProvider(RerankProvider):
                     except Exception as e:
                         logger.warning(f"解析结果 {idx} 时出错: {e}, result={result}")
                         continue
-                        
-                logger.info(f"[VLLM Rerank] 重排序完成，成功返回 {len(rerank_results)} 个结果")
+
+                logger.info(
+                    f"[VLLM Rerank] 重排序完成，成功返回 {len(rerank_results)} 个结果"
+                )
                 return rerank_results
 
         except aiohttp.ClientError as e:

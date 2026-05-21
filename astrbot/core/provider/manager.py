@@ -819,7 +819,8 @@ class ProviderManager:
                     continue
                 original_len = len(conf.get("provider", []))
                 conf["provider"] = [
-                    prov for prov in conf.get("provider", [])
+                    prov
+                    for prov in conf.get("provider", [])
                     if prov.get("id") not in target_prov_ids
                 ]
                 if len(conf.get("provider", [])) != original_len:

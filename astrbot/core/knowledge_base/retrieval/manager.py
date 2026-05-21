@@ -289,7 +289,10 @@ class RetrievalManager:
         # DEBUG LOGGING BEFORE SORT
         try:
             from astrbot import logger
-            logger.info(f"[Rerank Debug] Before Sort: {[f'idx:{r.metadata.get('chunk_index')} score:{r.score:.4f}' for r in reranked_list]}")
+
+            logger.info(
+                f"[Rerank Debug] Before Sort: {[f'idx:{r.metadata.get('chunk_index')} score:{r.score:.4f}' for r in reranked_list]}"
+            )
         except Exception:
             pass
 
@@ -298,7 +301,10 @@ class RetrievalManager:
         # DEBUG LOGGING AFTER SORT
         try:
             from astrbot import logger
-            logger.info(f"[Rerank Debug] After Sort: {[f'idx:{r.metadata.get('chunk_index')} score:{r.score:.4f}' for r in reranked_list[:top_k]]}")
+
+            logger.info(
+                f"[Rerank Debug] After Sort: {[f'idx:{r.metadata.get('chunk_index')} score:{r.score:.4f}' for r in reranked_list[:top_k]]}"
+            )
         except Exception:
             pass
 

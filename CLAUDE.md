@@ -1,4 +1,4 @@
-# CLAUDE.md
+﻿# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -383,3 +383,9 @@ Key routing rules:
 - Architecture review → invoke plan-eng-review
 - Save progress, checkpoint, resume → invoke checkpoint
 - Code quality, health check → invoke health
+
+### RPG tool analysis and audit maintenance
+
+- 工具分析报告、工具统计时间窗口、报告文件时间戳统一使用 UTC+8。新增统计字段或报告脚本时，不能混用 UTC/本地时间。
+- `TOOL_SKILL_MAP` 只维护当前真实 LLM 工具；新增、重命名、移除工具时必须同步更新该映射。历史旧工具名只能放在工具分析 skill 的 legacy 兼容层，不要继续污染运行时映射。
+- 工具使用分析只统计 LLM 行为。玩家通过 `/rpg` 内建命令触发的管理、查看、修复动作不应计入 LLM 工具使用率。

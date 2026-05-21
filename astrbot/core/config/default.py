@@ -3632,7 +3632,7 @@ CONFIG_METADATA_3 = {
                     "provider_settings.discard_tool_call_briefings": {
                         "description": "丢弃工具调用前的中间说明文本",
                         "type": "bool",
-                        "hint": "启用后，LLM 在调用工具前产生的\"让我先查一下...\"等说明文本将被丢弃，不会拼接到最终回复中。适合 RPG 沉浸式叙事场景。",
+                        "hint": '启用后，LLM 在调用工具前产生的"让我先查一下..."等说明文本将被丢弃，不会拼接到最终回复中。适合 RPG 沉浸式叙事场景。',
                         "condition": {
                             "provider_settings.agent_runner_type": "local",
                         },

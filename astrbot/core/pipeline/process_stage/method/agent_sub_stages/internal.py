@@ -67,7 +67,9 @@ class InternalAgentSubStage(Stage):
                 self.tool_schema_mode,
             )
             self.tool_schema_mode = "full"
-        self.dynamic_tool_reduction: bool = settings.get("dynamic_tool_reduction", False)
+        self.dynamic_tool_reduction: bool = settings.get(
+            "dynamic_tool_reduction", False
+        )
         self.discard_tool_call_briefings: bool = settings.get(
             "discard_tool_call_briefings", False
         )
@@ -385,9 +387,7 @@ class InternalAgentSubStage(Stage):
                         or agent_runner.was_aborted()
                     )
                     if user_aborted:
-                        logger.info(
-                            "User aborted via /stop, skipping history save."
-                        )
+                        logger.info("User aborted via /stop, skipping history save.")
                     elif not event.is_stopped():
                         await self._save_to_history(
                             event,
@@ -493,7 +493,9 @@ class InternalAgentSubStage(Stage):
                                 if t:
                                     assistant_text += t + "\n"
 
-                    summary = assistant_text + "[tool_calls] " + "; ".join(summary_parts)
+                    summary = (
+                        assistant_text + "[tool_calls] " + "; ".join(summary_parts)
+                    )
                     result.append({"role": "assistant", "content": summary})
                 # mode == "remove": skip entirely (don't append anything)
             else:

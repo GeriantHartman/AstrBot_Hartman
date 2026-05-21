@@ -467,7 +467,8 @@ class ProviderGoogleGenAI(Provider):
 
         if finish_reason == types.FinishReason.SAFETY:
             raise LLMContentFilteredError(
-                provider="gemini", reason="SAFETY",
+                provider="gemini",
+                reason="SAFETY",
                 msg="模型生成内容未通过 Gemini 平台的安全检查",
             )
 
@@ -477,7 +478,8 @@ class ProviderGoogleGenAI(Provider):
             types.FinishReason.BLOCKLIST,
         }:
             raise LLMContentFilteredError(
-                provider="gemini", reason=str(finish_reason),
+                provider="gemini",
+                reason=str(finish_reason),
                 msg="模型生成内容违反 Gemini 平台政策",
             )
 
@@ -485,7 +487,8 @@ class ProviderGoogleGenAI(Provider):
         if hasattr(types.FinishReason, "IMAGE_SAFETY"):
             if finish_reason == types.FinishReason.IMAGE_SAFETY:
                 raise LLMContentFilteredError(
-                    provider="gemini", reason="IMAGE_SAFETY",
+                    provider="gemini",
+                    reason="IMAGE_SAFETY",
                     msg="模型生成内容违反 Gemini 平台政策",
                 )
 
@@ -767,7 +770,7 @@ class ProviderGoogleGenAI(Provider):
                             chunk.candidates[0],
                             final_response,
                             validate_output=False,
-                    )
+                        )
                     except EmptyModelOutputError:
                         # Final streaming chunk may have empty text parts (e.g. only
                         # thought_signature); the real content is in accumulated_text
@@ -851,6 +854,7 @@ class ProviderGoogleGenAI(Provider):
         # Merge custom_extra_body from WebUI provider config (fixes Gemini bug
         # where extra_body settings like temperature/top_p were ignored)
         import json as _json
+
         custom_extra_body = self.provider_config.get("custom_extra_body", {})
         if isinstance(custom_extra_body, dict):
             for k, v in custom_extra_body.items():
@@ -865,12 +869,24 @@ class ProviderGoogleGenAI(Provider):
         # Forward generation parameters from kwargs into payloads
         # so _prepare_query_config can pick up temperature, top_p, etc.
         for _gen_key in (
-            "temperature", "top_p", "topP", "top_k", "topK",
-            "max_tokens", "maxOutputTokens",
-            "frequency_penalty", "frequencyPenalty",
-            "presence_penalty", "presencePenalty",
-            "stop", "stopSequences", "stop_sequences",
-            "seed", "logprobs", "response_logprobs", "responseLogprobs",
+            "temperature",
+            "top_p",
+            "topP",
+            "top_k",
+            "topK",
+            "max_tokens",
+            "maxOutputTokens",
+            "frequency_penalty",
+            "frequencyPenalty",
+            "presence_penalty",
+            "presencePenalty",
+            "stop",
+            "stopSequences",
+            "stop_sequences",
+            "seed",
+            "logprobs",
+            "response_logprobs",
+            "responseLogprobs",
         ):
             if _gen_key in kwargs:
                 payloads[_gen_key] = kwargs[_gen_key]
@@ -890,7 +906,7 @@ class ProviderGoogleGenAI(Provider):
                 # HTTP 5xx → treat as transient
                 if getattr(e, "code", None) in (500, 502, 503, 504):
                     _last_transient = e
-                    delay = min(backoff_base * (2 ** _attempt), backoff_max)
+                    delay = min(backoff_base * (2**_attempt), backoff_max)
                     logger.error(
                         f"Gemini HTTP {e.code} (transient): {e}, retrying in {delay:.1f}s "
                         f"({_attempt + 1}/{retry})"
@@ -902,7 +918,7 @@ class ProviderGoogleGenAI(Provider):
                 break
             except (LLMTransientError, EmptyModelOutputError) as e:
                 _last_transient = e
-                delay = min(backoff_base * (2 ** _attempt), backoff_max)
+                delay = min(backoff_base * (2**_attempt), backoff_max)
                 logger.error(
                     f"Gemini transient error ({type(e).__name__}): {e}, "
                     f"retrying in {delay:.1f}s ({_attempt + 1}/{retry})"
@@ -971,6 +987,7 @@ class ProviderGoogleGenAI(Provider):
         # Merge custom_extra_body from WebUI provider config (fixes Gemini bug
         # where extra_body settings like temperature/top_p were ignored)
         import json as _json
+
         custom_extra_body = self.provider_config.get("custom_extra_body", {})
         if isinstance(custom_extra_body, dict):
             for k, v in custom_extra_body.items():
@@ -984,12 +1001,24 @@ class ProviderGoogleGenAI(Provider):
                 payloads[k] = v
         # Forward generation parameters from kwargs into payloads
         for _gen_key in (
-            "temperature", "top_p", "topP", "top_k", "topK",
-            "max_tokens", "maxOutputTokens",
-            "frequency_penalty", "frequencyPenalty",
-            "presence_penalty", "presencePenalty",
-            "stop", "stopSequences", "stop_sequences",
-            "seed", "logprobs", "response_logprobs", "responseLogprobs",
+            "temperature",
+            "top_p",
+            "topP",
+            "top_k",
+            "topK",
+            "max_tokens",
+            "maxOutputTokens",
+            "frequency_penalty",
+            "frequencyPenalty",
+            "presence_penalty",
+            "presencePenalty",
+            "stop",
+            "stopSequences",
+            "stop_sequences",
+            "seed",
+            "logprobs",
+            "response_logprobs",
+            "responseLogprobs",
         ):
             if _gen_key in kwargs:
                 payloads[_gen_key] = kwargs[_gen_key]
@@ -1008,7 +1037,7 @@ class ProviderGoogleGenAI(Provider):
                 break
             except APIError as e:
                 if getattr(e, "code", None) in (500, 502, 503, 504):
-                    delay = min(backoff_base * (2 ** _attempt), backoff_max)
+                    delay = min(backoff_base * (2**_attempt), backoff_max)
                     logger.error(
                         f"Gemini stream HTTP {e.code} (transient): {e}, "
                         f"retrying in {delay:.1f}s ({_attempt + 1}/{retry})"
@@ -1019,7 +1048,7 @@ class ProviderGoogleGenAI(Provider):
                     continue
                 break
             except (LLMTransientError, EmptyModelOutputError) as e:
-                delay = min(backoff_base * (2 ** _attempt), backoff_max)
+                delay = min(backoff_base * (2**_attempt), backoff_max)
                 logger.error(
                     f"Gemini stream transient error ({type(e).__name__}): {e}, "
                     f"retrying in {delay:.1f}s ({_attempt + 1}/{retry})"

@@ -597,7 +597,9 @@ class ProviderOpenAIOfficial(Provider):
         self._apply_provider_specific_extra_body_overrides(extra_body)
 
         model = payloads.get("model", "").lower()
-        logger.info(f"[OpenAI Request] model: {model}, payloads: {json.dumps(payloads, ensure_ascii=False)}, extra_body: {json.dumps(extra_body, ensure_ascii=False)}")
+        logger.info(
+            f"[OpenAI Request] model: {model}, payloads: {json.dumps(payloads, ensure_ascii=False)}, extra_body: {json.dumps(extra_body, ensure_ascii=False)}"
+        )
 
         self._sanitize_assistant_messages(payloads)
 
@@ -662,7 +664,9 @@ class ProviderOpenAIOfficial(Provider):
         self._apply_provider_specific_extra_body_overrides(extra_body)
 
         model = payloads.get("model", "").lower()
-        logger.info(f"[OpenAI Stream Request] model: {model}, payloads: {json.dumps(payloads, ensure_ascii=False)}, extra_body: {json.dumps(extra_body, ensure_ascii=False)}")
+        logger.info(
+            f"[OpenAI Stream Request] model: {model}, payloads: {json.dumps(payloads, ensure_ascii=False)}, extra_body: {json.dumps(extra_body, ensure_ascii=False)}"
+        )
 
         self._sanitize_assistant_messages(payloads)
 
@@ -1071,7 +1075,9 @@ class ProviderOpenAIOfficial(Provider):
                     message["content"] = new_content or None
                     if reasoning_content:
                         message["reasoning_content"] = reasoning_content
-                    elif is_deepseek_v4_reasoning and "reasoning_content" not in message:
+                    elif (
+                        is_deepseek_v4_reasoning and "reasoning_content" not in message
+                    ):
                         logger.info(
                             "Deepseek v4 thinking: empty reasoning on list-content "
                             "assistant message; setting reasoning_content='none'."
@@ -1222,8 +1228,10 @@ class ProviderOpenAIOfficial(Provider):
             or "deadline" in str(e).lower()
         )
         if is_transient and retry_cnt < max_retries - 1:
-            backoff_base = float(self.provider_config.get("retry_backoff_base", 1.0) or 1.0)
-            delay = min(backoff_base * (2 ** retry_cnt), 30.0)
+            backoff_base = float(
+                self.provider_config.get("retry_backoff_base", 1.0) or 1.0
+            )
+            delay = min(backoff_base * (2**retry_cnt), 30.0)
             logger.error(
                 f"OpenAI transient error ({type(e).__name__}): {str(e)[:300]}, "
                 f"retrying in {delay:.1f}s ({retry_cnt + 1}/{max_retries})"
