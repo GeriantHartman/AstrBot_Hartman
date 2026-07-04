@@ -1,0 +1,4 @@
+interface:
+  display_name: "RPG Canonical Converter"
+  short_description: "Convert skills to RPG canonical YAML cards."
+  default_prompt: "Convert character skill folders into Agentic RPG canonical YAML cards and sync source/runtime plugin copies."

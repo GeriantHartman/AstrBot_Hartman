@@ -3,7 +3,8 @@ __pycache__
 .mypy_cache
 .venv*
 .conda/
-uv.lock
+# Keep uv.lock tracked so local and server installs resolve identically.
+!uv.lock
 .coverage
 
 # IDE and editors
@@ -58,7 +59,13 @@ IFLOW.md
 CharacterModels/
 GenieData/
 .agent/
-.codex/
+.codex/*
+!.codex/skills/
+!.codex/skills/**
+.codex/config.toml
+.codex/skills/*.zip
+.codex/skills/**/__pycache__/
+.codex/skills/**/*.pyc
 .opencode/
 .kilocode/
 .worktrees/

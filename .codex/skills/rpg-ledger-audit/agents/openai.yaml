@@ -1,0 +1,3 @@
+display_name: RPG 审计账本离线审计
+short_description: 离线审计 RPG 账本与 reviewer
+default_prompt: 读取最近的 Agentic RPG LLM 审计账本或 narrative_reviewer audit，识别 RPG 管线、COT/CAI reviewer、根提示词或聊天模板中的文风问题，并为全局指导、风格指导、会话个人偏好或 reviewer 方法论提出最小 diff。
