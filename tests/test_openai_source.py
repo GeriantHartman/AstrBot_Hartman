@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
@@ -8,6 +9,7 @@ from PIL import Image as PILImage
 from astrbot.core.exceptions import EmptyModelOutputError
 from astrbot.core.provider.sources.groq_source import ProviderGroq
 from astrbot.core.provider.sources.openai_source import ProviderOpenAIOfficial
+from astrbot.core.provider.sources.prompt_post_processor import CUSTOM_USER_PROTOCOL_KEY
 
 
 class _ErrorWithBody(Exception):
@@ -50,6 +52,131 @@ def _make_groq_provider(overrides: dict | None = None) -> ProviderGroq:
         provider_config=provider_config,
         provider_settings={},
     )
+
+
+@pytest.mark.asyncio
+async def test_prepare_chat_payload_merges_adjacent_system_messages():
+    provider = _make_provider()
+    try:
+        payloads, _ = await provider._prepare_chat_payload(
+            prompt=None,
+            contexts=[
+                {"role": "system", "content": "global-a"},
+                {"role": "system", "content": "global-b"},
+                {"role": "user", "content": "history"},
+                {"role": "system", "content": "post-history"},
+            ],
+        )
+
+        assert payloads["messages"] == [
+            {"role": "system", "content": "global-a\n\nglobal-b"},
+            {"role": "user", "content": "history"},
+            {"role": "system", "content": "post-history"},
+        ]
+    finally:
+        await provider.terminate()
+
+
+@pytest.mark.asyncio
+async def test_prepare_chat_payload_renders_custom_user_protocol_at_openai_top():
+    provider = _make_provider()
+    try:
+        payloads, _ = await provider._prepare_chat_payload(
+            prompt="current",
+            contexts=[
+                {"role": "system", "content": "global"},
+                {
+                    "role": "user",
+                    "content": "protocol",
+                    CUSTOM_USER_PROTOCOL_KEY: {
+                        "openai": {
+                            "role": "system",
+                            "prepend_user_separator": True,
+                            "user_separator": "  \n",
+                        }
+                    },
+                },
+            ],
+        )
+
+        assert payloads["messages"] == [
+            {"role": "user", "content": "  \n"},
+            {"role": "system", "content": "protocol\n\nglobal"},
+            {"role": "user", "content": "current"},
+        ]
+    finally:
+        await provider.terminate()
+
+
+def test_extract_model_ids_supports_openai_and_compatible_payloads():
+    payload = SimpleNamespace(
+        data=[
+            SimpleNamespace(id="gpt-4o-mini"),
+            {"id": "qwen-plus"},
+            {"name": "glm-4.5"},
+            "deepseek-chat",
+            " qwen-plus ",
+            {"id": ""},
+            123,
+        ]
+    )
+
+    assert ProviderOpenAIOfficial._extract_model_ids(payload) == [
+        "deepseek-chat",
+        "glm-4.5",
+        "gpt-4o-mini",
+        "qwen-plus",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_get_models_parses_raw_string_models(monkeypatch):
+    provider = _make_provider()
+    try:
+
+        async def raw_response_list():
+            return SimpleNamespace(
+                http_response=httpx.Response(
+                    200,
+                    json={"data": ["qwen-plus", {"id": "gpt-4o-mini"}]},
+                )
+            )
+
+        monkeypatch.setattr(
+            provider.client.models.with_raw_response,
+            "list",
+            raw_response_list,
+        )
+
+        assert await provider.get_models() == ["gpt-4o-mini", "qwen-plus"]
+    finally:
+        await provider.terminate()
+
+
+@pytest.mark.asyncio
+async def test_get_models_raw_reports_non_json_response(monkeypatch):
+    provider = _make_provider()
+    try:
+
+        async def raw_response_list():
+            return SimpleNamespace(
+                http_response=httpx.Response(
+                    200,
+                    headers={"content-type": "text/html"},
+                    text="<html>login required</html>",
+                )
+            )
+
+        monkeypatch.setattr(
+            provider.client.models.with_raw_response,
+            "list",
+            raw_response_list,
+        )
+
+        with pytest.raises(Exception, match="非 JSON 响应"):
+            await provider._get_models_raw()
+    finally:
+        await provider.terminate()
 
 
 @pytest.mark.asyncio

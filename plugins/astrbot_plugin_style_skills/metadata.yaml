@@ -1,0 +1,6 @@
+name: astrbot_plugin_style_skills
+version: 0.3.0
+author: Hartman
+desc: 为 persona 单角色场景自动注入核心规则与当前写作风格，省掉 LLM 的工具调用轮次
+display_name: 风格 Skill 注入
+astrbot_version: ">=4.16"

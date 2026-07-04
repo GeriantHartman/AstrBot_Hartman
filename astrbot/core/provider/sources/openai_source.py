@@ -51,6 +51,7 @@ from astrbot.core.utils.network_utils import (
 from astrbot.core.utils.string_utils import normalize_and_dedupe_strings
 
 from ..register import register_provider_adapter
+from .prompt_post_processor import expand_custom_user_protocol, merge_adjacent_messages
 
 
 @register_provider_adapter(
@@ -514,14 +515,49 @@ class ProviderOpenAIOfficial(Provider):
 
     async def get_models(self):
         try:
-            models_str = []
-            models = await self.client.models.list()
-            models = sorted(models.data, key=lambda x: x.id)
-            for model in models:
-                models_str.append(model.id)
-            return models_str
+            models = await self._get_models_raw()
+            return self._extract_model_ids(models)
         except NotFoundError as e:
             raise Exception(f"获取模型列表失败：{e}")
+
+    @staticmethod
+    def _extract_model_ids(models: Any) -> list[str]:
+        data = getattr(models, "data", models)
+        if isinstance(data, dict):
+            data = data.get("data", data.get("models", []))
+        if not isinstance(data, list | tuple):
+            return []
+
+        model_ids: list[str] = []
+        for model in data:
+            model_id = None
+            if isinstance(model, str):
+                model_id = model
+            elif isinstance(model, dict):
+                model_id = model.get("id") or model.get("name")
+            else:
+                model_id = getattr(model, "id", None) or getattr(model, "name", None)
+
+            if isinstance(model_id, str) and model_id:
+                model_ids.append(model_id)
+
+        return sorted(normalize_and_dedupe_strings(model_ids))
+
+    async def _get_models_raw(self) -> Any:
+        raw_response = await self.client.models.with_raw_response.list()
+        response = getattr(raw_response, "http_response", raw_response)
+        try:
+            return response.json()
+        except json.JSONDecodeError as e:
+            content_type = response.headers.get("content-type", "unknown")
+            response_text = response.text.strip()
+            if len(response_text) > 300:
+                response_text = f"{response_text[:300]}..."
+            raise Exception(
+                "获取模型列表失败：上游 /models 返回了非 JSON 响应。"
+                f"HTTP {response.status_code}, Content-Type: {content_type}, "
+                f"Body: {response_text or '<empty>'}"
+            ) from e
 
     @staticmethod
     def _sanitize_assistant_messages(payloads: dict) -> None:
@@ -1007,6 +1043,11 @@ class ProviderOpenAIOfficial(Provider):
         if system_prompt:
             context_query.insert(0, {"role": "system", "content": system_prompt})
 
+        context_query = expand_custom_user_protocol(
+            context_query,
+            provider_family="openai",
+        )
+
         for part in context_query:
             if "_no_save" in part:
                 del part["_no_save"]
@@ -1023,6 +1064,8 @@ class ProviderOpenAIOfficial(Provider):
 
         if self._context_contains_image(context_query):
             context_query = await self._materialize_context_image_parts(context_query)
+
+        context_query = merge_adjacent_messages(context_query, roles={"system"})
 
         model = model or self.get_model()
 

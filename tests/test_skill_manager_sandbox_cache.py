@@ -16,6 +16,33 @@ def _write_skill(root: Path, name: str, description: str) -> None:
     )
 
 
+def test_skill_manager_loads_bom_prefixed_config(monkeypatch, tmp_path: Path):
+    data_dir = tmp_path / "data"
+    temp_dir = tmp_path / "temp"
+    skills_root = tmp_path / "skills"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    skills_root.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(
+        "astrbot.core.skills.skill_manager.get_astrbot_data_path",
+        lambda: str(data_dir),
+    )
+    monkeypatch.setattr(
+        "astrbot.core.skills.skill_manager.get_astrbot_temp_path",
+        lambda: str(temp_dir),
+    )
+    (data_dir / "skills.json").write_text(
+        '\ufeff{"skills": {"custom-local": {"active": true}}}',
+        encoding="utf-8",
+    )
+    _write_skill(skills_root, "custom-local", "local description")
+
+    mgr = SkillManager(skills_root=str(skills_root))
+
+    assert [skill.name for skill in mgr.list_skills()] == ["custom-local"]
+
+
 def test_list_skills_merges_local_and_sandbox_cache(monkeypatch, tmp_path: Path):
     data_dir = tmp_path / "data"
     temp_dir = tmp_path / "temp"
@@ -154,4 +181,3 @@ def test_sandbox_and_local_path_resolution_with_show_sandbox_path_false(
     assert local_skill_path.is_relative_to(skills_root)
     assert local_skill_path == skills_root / "custom-local" / "SKILL.md"
     assert by_name["python-sandbox"].path == "/app/skills/python-sandbox/SKILL.md"
-

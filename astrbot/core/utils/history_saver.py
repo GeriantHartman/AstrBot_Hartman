@@ -1,9 +1,8 @@
-import json
-
 from astrbot import logger
 from astrbot.core.conversation_mgr import ConversationManager
 from astrbot.core.platform.astr_message_event import AstrMessageEvent
 from astrbot.core.provider.entities import ProviderRequest
+from astrbot.core.utils.json_utils import json_loads_no_bom
 
 
 async def persist_agent_history(
@@ -19,7 +18,7 @@ async def persist_agent_history(
 
     history = []
     try:
-        history = json.loads(req.conversation.history or "[]")
+        history = json_loads_no_bom(req.conversation.history or "[]")
     except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to parse conversation history: %s", exc)
     history.append({"role": "user", "content": "Output your last task result below."})

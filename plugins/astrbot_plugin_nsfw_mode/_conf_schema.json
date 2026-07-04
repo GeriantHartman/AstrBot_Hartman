@@ -1,0 +1,109 @@
+{
+  "enabled": {
+    "description": "启用插件",
+    "type": "bool",
+    "default": true,
+    "hint": "关闭后，本插件不会响应 /nsfw 命令，也不会注入 style、切换 provider 或执行 summary。"
+  },
+  "default_session_open": {
+    "description": "新 session 默认开启 NSFW 功能入口",
+    "type": "bool",
+    "default": false,
+    "hint": "关闭时，新 session 必须先 /nsfw open 或直接 /nsfw enter 才会启用本插件。推荐保持 false，避免误注入。"
+  },
+  "inject_header": {
+    "description": "NSFW style 注入标题",
+    "type": "string",
+    "default": "## NSFW Mode",
+    "hint": "进入 /nsfw enter 后追加到 system_prompt 末尾的注入段标题。留空则只注入正文。"
+  },
+  "nsfw_style_text": {
+    "description": "自定义 NSFW style 注入内容",
+    "type": "text",
+    "default": "",
+    "hint": "留空时使用插件内置 skills/nsfw-mode/SKILL.md。只有 /nsfw enter 后才会注入。"
+  },
+  "pre_system_user_content": {
+    "description": "system_prompt 前注入的 user 内容",
+    "type": "text",
+    "default": "",
+    "hint": "NSFW 段内，在注入 NSFW style 到 system_prompt 之前，先向 contexts 头部插入一条 role=user 的消息。内容原样保留；不会 trim，不检查空行或换行。只有完全空字符串才不注入。"
+  },
+  "pre_system_system_content": {
+    "description": "system_prompt 前注入的 system 内容",
+    "type": "text",
+    "default": "",
+    "hint": "NSFW 段内，在注入 NSFW style 到 system_prompt 之前，先向 contexts 头部插入一条 role=system 的消息。内容原样保留；不会 trim，不检查空行或换行。只有完全空字符串才不注入。"
+  },
+  "pre_system_inject_on_open": {
+    "description": "open 后立即注入 system_prompt 前置内容",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后，只要本 session 已 /nsfw open，即使尚未 /nsfw enter，也会注入上面的 role=user 与 role=system 内容。关闭后仍只在 /nsfw enter 后注入。"
+  },
+  "enable_payload_log": {
+    "description": "写入 LLM payload 调试日志",
+    "type": "bool",
+    "default": false,
+    "hint": "调试时开启。在本插件参与处理的请求中，把 ProviderRequest 原始字段和按 AstrBot runner 逻辑推导的 messages 预览写入 data/plugin_data/astrbot_plugin_nsfw_mode/llm_payload_logs。日志可能包含完整上下文原文；不调试时建议保持关闭。"
+  },
+  "payload_log_max_files": {
+    "description": "最多保留 payload 日志数量",
+    "type": "int",
+    "default": 200,
+    "hint": "超过该数量时自动删除最旧的 JSON 日志文件。"
+  },
+  "use_independent_provider": {
+    "description": "NSFW 使用独立 provider 与 fallback",
+    "type": "bool",
+    "default": false,
+    "hint": "关闭时，NSFW 模式沿用当前主对话 provider。开启后，NSFW 模式使用下面的 nsfw_provider_id 作为主 provider，并使用 nsfw_provider_chain 作为 fallback。"
+  },
+  "nsfw_provider_id": {
+    "description": "NSFW 主 provider",
+    "type": "string",
+    "default": "",
+    "_special": "select_provider",
+    "hint": "仅在“NSFW 使用独立 provider 与 fallback”开启时生效。留空则仍使用当前主对话 provider 作为 NSFW 主 provider，但会使用 NSFW fallback 链。exit summary 也直接使用解析出的 NSFW provider。"
+  },
+  "nsfw_provider_chain": {
+    "description": "NSFW fallback provider 链",
+    "type": "list",
+    "items": {
+      "type": "string"
+    },
+    "default": [],
+    "_special": "select_providers",
+    "hint": "仅在“NSFW 使用独立 provider 与 fallback”开启时生效。主 provider 失败、内容过滤或返回过短时，按顺序尝试这里的 provider。exit summary 也使用同一条链。"
+  },
+  "fallback_min_chars": {
+    "description": "触发 live fallback 的最小回复字符数",
+    "type": "int",
+    "default": 5,
+    "hint": "NSFW 段内，独立 provider 返回文本长度低于该值时，会尝试 fallback provider。设为 0 可关闭过短回复检测。"
+  },
+  "error_fallback_enabled": {
+    "description": "错误回复触发 fallback",
+    "type": "bool",
+    "default": true,
+    "hint": "NSFW 段内，当最终回复像 provider 错误或内容过滤报错时，尝试用 NSFW fallback 链重跑本轮请求。"
+  },
+  "summary_system_prompt": {
+    "description": "NSFW 退出 summary system prompt",
+    "type": "text",
+    "default": "你是一个对话上下文折叠模块。\n\n你收到的内容已经由程序根据 [NSFW_MODE_ENTER] 和 [NSFW_MODE_EXIT] 标记精确截取。不要判断哪些部分需要总结，不要扩大范围，也不要缩小范围。你的唯一任务是把输入片段替换成一段“无细节的高层连续性摘要”。\n\n硬性规则：\n- 只用中文输出。\n- 不保留露骨、身体、动作、感官、具体对白或成人细节。\n- 不引用原文句子。\n- 只保留连续性事实：参与者、关系变化、情绪变化、决定、承诺、场景状态、未解决伏笔、角色长期状态。\n- 如果年龄、同意、强迫或安全边界存在模糊内容，省略该模糊内容，只写中性的剧情状态变化。\n- 只输出替换用摘要，不要解释你的处理过程。\n- 摘要必须以 [NSFW_MODE_SUMMARY] 开头。\n- 摘要通常控制在 80-220 个中文字符。",
+    "hint": "留空使用插件默认 prompt。该 prompt 会发送给 NSFW provider，要求只生成无细节、高层事实摘要。"
+  },
+  "summary_user_template": {
+    "description": "NSFW 退出 summary 用户模板",
+    "type": "text",
+    "default": "以下是程序已经根据 NSFW enter/exit 标记截取好的固定片段。\n不要判断总结范围；只总结下面这段内容。\n\n请把它折叠为中文高层连续性摘要，用于替换原文进入长期上下文。必须删除具体对白、动作、感官、身体和成人细节，只保留“发生了什么”的事实层结果、关系变化、情绪变化、场景状态和未解决伏笔。\n\n固定片段原文：\n{conversation_text}",
+    "hint": "留空使用插件默认模板。可使用 {conversation_text} 占位符插入 enter 到 exit 之间的原文。summary LLM 直接采用 NSFW provider。"
+  },
+  "summary_max_chars": {
+    "description": "summary 最大字符数",
+    "type": "int",
+    "default": 800,
+    "hint": "NSFW provider 生成的 summary 超过该长度时会被截断，避免替换内容过长。"
+  }
+}

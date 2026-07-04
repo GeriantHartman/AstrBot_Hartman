@@ -285,7 +285,7 @@ class SkillManager:
         if not os.path.exists(self.config_path):
             self._save_config(DEFAULT_SKILLS_CONFIG.copy())
             return DEFAULT_SKILLS_CONFIG.copy()
-        with open(self.config_path, encoding="utf-8") as f:
+        with open(self.config_path, encoding="utf-8-sig") as f:
             data = json.load(f)
         if not isinstance(data, dict) or "skills" not in data:
             return DEFAULT_SKILLS_CONFIG.copy()
@@ -299,7 +299,7 @@ class SkillManager:
         if not os.path.exists(self.sandbox_skills_cache_path):
             return {"version": _SANDBOX_SKILLS_CACHE_VERSION, "skills": []}
         try:
-            with open(self.sandbox_skills_cache_path, encoding="utf-8") as f:
+            with open(self.sandbox_skills_cache_path, encoding="utf-8-sig") as f:
                 data = json.load(f)
             if not isinstance(data, dict):
                 return {"version": _SANDBOX_SKILLS_CACHE_VERSION, "skills": []}

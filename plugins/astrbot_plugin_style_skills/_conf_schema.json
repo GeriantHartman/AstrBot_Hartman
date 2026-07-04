@@ -1,0 +1,56 @@
+{
+  "enabled": {
+    "description": "启用插件",
+    "type": "bool",
+    "default": true,
+    "hint": "关闭后本插件不再向 system_prompt 注入任何风格内容。"
+  },
+  "skill_prefix": {
+    "description": "风格 Skill 目录前缀",
+    "type": "string",
+    "default": "single-style-",
+    "hint": "扫描插件内置 skills/ 与独立 style skills 目录下以此前缀命名的目录，后缀即为风格名（例如 single-style-daily → 风格 daily）。独立目录同名风格会覆盖内置风格。"
+  },
+  "style_skills_dir": {
+    "description": "独立 style skills 目录",
+    "type": "string",
+    "default": "",
+    "hint": "风格注入专用目录，默认使用 data/plugin_data/style_skills/injected_skills。相对路径会解析到 data/plugin_data/style_skills/ 下。不要放在 data/skills，否则 AstrBot 原生 Skills 工具仍可检索到。"
+  },
+  "auto_reload": {
+    "description": "自动热重载 style skills",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后，每次 LLM 请求前会检查内置与独立目录中 SKILL.md 的修改时间；有新增、删除或修改时自动重新加载，无需 /style reload。"
+  },
+  "scan_global_skills_dir": {
+    "description": "兼容扫描全局 data/skills",
+    "type": "bool",
+    "default": false,
+    "hint": "仅用于旧配置兼容。开启后会继续扫描 AstrBot 原生 data/skills，但这些 style 会被原生 Skills 工具检索到。建议保持关闭，并把风格 Skill 放到独立 style skills 目录。"
+  },
+  "core_skill": {
+    "description": "核心 Skill 名（可选）",
+    "type": "string",
+    "default": "single-roleplay-core",
+    "hint": "如果指定了一个 Skill 名，该 Skill 的内容会在所有写作风格前被先行注入。默认 single-roleplay-core 用作 persona 单角色扮演全局规则。留空则不注入核心部分。"
+  },
+  "default_style": {
+    "description": "默认风格",
+    "type": "string",
+    "default": "daily",
+    "hint": "新 session 未显式选过风格时使用的风格名。必须是已发现的风格之一，否则按未注入处理。"
+  },
+  "inject_header": {
+    "description": "注入段落标题",
+    "type": "string",
+    "default": "## 单角色扮演注入",
+    "hint": "注入到 system_prompt 末尾的这段内容的小标题。留空则不加标题直接拼接。"
+  },
+  "strict_warn_missing_default": {
+    "description": "默认风格缺失时告警",
+    "type": "bool",
+    "default": true,
+    "hint": "启用后，若配置的 default_style 在扫描到的 Skills 中不存在，会在 WARN 级别打一条日志提醒。"
+  }
+}

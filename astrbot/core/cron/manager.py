@@ -17,6 +17,7 @@ from astrbot.core.db.po import CronJob
 from astrbot.core.platform.message_session import MessageSession
 from astrbot.core.provider.entites import ProviderRequest
 from astrbot.core.utils.history_saver import persist_agent_history
+from astrbot.core.utils.json_utils import json_loads_no_bom
 
 if TYPE_CHECKING:
     from astrbot.core.star.context import Context
@@ -331,7 +332,7 @@ class CronJobManager:
         conv = await _get_session_conv(event=cron_event, plugin_context=self.ctx)
         req.conversation = conv
         # finetine the messages
-        context = json.loads(conv.history)
+        context = json_loads_no_bom(conv.history)
         if context:
             req.contexts = context
             context_dump = req._print_friendly_context()

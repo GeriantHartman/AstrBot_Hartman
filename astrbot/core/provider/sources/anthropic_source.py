@@ -24,6 +24,11 @@ from astrbot.core.utils.network_utils import (
 )
 
 from ..register import register_provider_adapter
+from .prompt_post_processor import (
+    expand_custom_user_protocol,
+    merge_adjacent_messages,
+    split_leading_system_messages,
+)
 
 
 @register_provider_adapter(
@@ -141,12 +146,17 @@ class ProviderAnthropic(Provider):
             new_messages: 处理后的消息列表，去除系统提示
 
         """
-        system_prompt = ""
+        messages = expand_custom_user_protocol(
+            messages,
+            provider_family="native_top_level_system",
+        )
+        system_prompt, messages = split_leading_system_messages(messages)
         new_messages = []
         for message in messages:
             if message["role"] == "system":
-                system_prompt = message["content"] or "<empty system prompt>"
-            elif message["role"] == "assistant":
+                message = {**message, "role": "user"}
+
+            if message["role"] == "assistant":
                 blocks = []
                 reasoning_content = ""
                 thinking_signature = ""
@@ -261,7 +271,10 @@ class ProviderAnthropic(Provider):
             else:
                 new_messages.append(message)
 
-        return system_prompt, new_messages
+        return system_prompt, merge_adjacent_messages(
+            new_messages,
+            roles={"user", "assistant"},
+        )
 
     def _extract_usage(self, usage: Usage) -> TokenUsage:
         # https://docs.claude.com/en/docs/build-with-claude/prompt-caching#tracking-cache-performance
@@ -553,6 +566,8 @@ class ProviderAnthropic(Provider):
         for part in context_query:
             if "_no_save" in part:
                 del part["_no_save"]
+            if "_no_truncate" in part:
+                del part["_no_truncate"]
 
         # tool calls result
         if tool_calls_result:
@@ -616,6 +631,8 @@ class ProviderAnthropic(Provider):
         for part in context_query:
             if "_no_save" in part:
                 del part["_no_save"]
+            if "_no_truncate" in part:
+                del part["_no_truncate"]
 
         # tool calls result
         if tool_calls_result:

@@ -31,6 +31,10 @@ from astrbot.core.utils.media_utils import ensure_wav
 from astrbot.core.utils.network_utils import is_connection_error, log_connection_failure
 
 from ..register import register_provider_adapter
+from .prompt_post_processor import (
+    expand_custom_user_protocol,
+    split_leading_system_messages,
+)
 
 
 class SuppressNonTextPartsWarning(logging.Filter):
@@ -310,7 +314,7 @@ class ProviderGoogleGenAI(Provider):
         for message in payloads["messages"]:
             role, content = message["role"], message.get("content")
 
-            if role == "user":
+            if role in ("user", "system"):
                 if isinstance(content, list):
                     parts = [
                         (
@@ -406,6 +410,19 @@ class ProviderGoogleGenAI(Provider):
             gemini_contents.pop()
 
         return gemini_contents
+
+    def _prepare_native_request(
+        self,
+        payloads: dict,
+    ) -> tuple[str | None, list[types.Content]]:
+        """Convert OpenAI-style messages into Gemini's native prompt shape."""
+        messages = expand_custom_user_protocol(
+            payloads["messages"],
+            provider_family="native_top_level_system",
+        )
+        system_instruction, messages = split_leading_system_messages(messages)
+        conversation = self._prepare_conversation({**payloads, "messages": messages})
+        return system_instruction or None, conversation
 
     def _extract_reasoning_content(self, candidate: types.Candidate) -> str:
         """Extract reasoning content from candidate parts"""
@@ -567,10 +584,7 @@ class ProviderGoogleGenAI(Provider):
 
     async def _query(self, payloads: dict, tools: ToolSet | None) -> LLMResponse:
         """非流式请求 Gemini API"""
-        system_instruction = next(
-            (msg["content"] for msg in payloads["messages"] if msg["role"] == "system"),
-            None,
-        )
+        system_instruction, conversation = self._prepare_native_request(payloads)
 
         model = payloads.get("model", self.get_model())
 
@@ -578,7 +592,6 @@ class ProviderGoogleGenAI(Provider):
         if self.provider_config.get("gm_resp_image_modal", False):
             modalities.append("IMAGE")
 
-        conversation = self._prepare_conversation(payloads)
         temperature = payloads.get("temperature", 0.7)
 
         result: types.GenerateContentResponse | None = None
@@ -670,12 +683,8 @@ class ProviderGoogleGenAI(Provider):
         tools: ToolSet | None,
     ) -> AsyncGenerator[LLMResponse, None]:
         """流式请求 Gemini API"""
-        system_instruction = next(
-            (msg["content"] for msg in payloads["messages"] if msg["role"] == "system"),
-            None,
-        )
+        system_instruction, conversation = self._prepare_native_request(payloads)
         model = payloads.get("model", self.get_model())
-        conversation = self._prepare_conversation(payloads)
 
         modalities = ["TEXT"]
         if self.provider_config.get("gm_resp_image_modal", False):

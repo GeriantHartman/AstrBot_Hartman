@@ -45,6 +45,7 @@ from astrbot.core.tools.message_tools import SendMessageToUserTool
 from astrbot.core.utils.astrbot_path import get_astrbot_temp_path
 from astrbot.core.utils.history_saver import persist_agent_history
 from astrbot.core.utils.image_ref_utils import is_supported_image_ref
+from astrbot.core.utils.json_utils import json_loads_no_bom
 from astrbot.core.utils.string_utils import normalize_and_dedupe_strings
 
 
@@ -530,7 +531,7 @@ class FunctionToolExecutor(BaseFunctionToolExecutor[AstrAgentContext]):
         req = ProviderRequest()
         conv = await _get_session_conv(event=cron_event, plugin_context=ctx)
         req.conversation = conv
-        context = json.loads(conv.history)
+        context = json_loads_no_bom(conv.history)
         if context:
             req.contexts = context
             context_dump = req._print_friendly_context()

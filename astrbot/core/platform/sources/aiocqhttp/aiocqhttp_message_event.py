@@ -18,6 +18,9 @@ from astrbot.api.message_components import (
 )
 from astrbot.api.platform import Group, MessageMember
 
+MAX_ONEBOT_TEXT_CHARS = 3800
+MAX_ONEBOT_FORWARD_NODE_TEXT_CHARS = 6000
+
 
 class AiocqhttpMessageEvent(AstrMessageEvent):
     def __init__(
@@ -111,6 +114,106 @@ class AiocqhttpMessageEvent(AstrMessageEvent):
                 f"无法发送消息：缺少有效的数字 session_id({session_id}) 或 event({event})",
             )
 
+    @staticmethod
+    def _split_text(text: str, limit: int = MAX_ONEBOT_TEXT_CHARS) -> list[str]:
+        if len(text or "") <= limit:
+            return [text] if text else []
+        chunks: list[str] = []
+        rest = text
+        while len(rest) > limit:
+            cut = max(
+                rest.rfind("\n\n", 0, limit),
+                rest.rfind("\n", 0, limit),
+                rest.rfind("\u3002", 0, limit),
+                rest.rfind("\uff01", 0, limit),
+                rest.rfind("\uff1f", 0, limit),
+            )
+            if cut < limit // 2:
+                cut = limit
+            else:
+                cut += 1
+            chunk = rest[:cut]
+            if chunk.strip():
+                chunks.append(chunk)
+            rest = rest[cut:]
+        if rest.strip():
+            chunks.append(rest)
+        return chunks
+
+    @classmethod
+    def _split_plain_chains(cls, message_chain: MessageChain) -> list[MessageChain]:
+        chains: list[MessageChain] = []
+        current: list[BaseMessageComponent] = []
+        current_len = 0
+
+        def flush() -> None:
+            nonlocal current, current_len
+            if current:
+                chains.append(MessageChain(list(current)))
+                current = []
+                current_len = 0
+
+        for seg in message_chain.chain:
+            if not isinstance(seg, Plain):
+                current.append(seg)
+                continue
+            for chunk in cls._split_text(seg.text):
+                if current_len and current_len + len(chunk) > MAX_ONEBOT_TEXT_CHARS:
+                    flush()
+                current.append(Plain(chunk))
+                current_len += len(chunk)
+                if current_len >= MAX_ONEBOT_TEXT_CHARS:
+                    flush()
+        flush()
+        return chains or [message_chain]
+
+    @classmethod
+    def _split_node(cls, node: Node) -> list[Node]:
+        nodes: list[Node] = []
+        current: list[BaseMessageComponent] = []
+        current_len = 0
+
+        def make_node(content: list[BaseMessageComponent]) -> Node:
+            return Node(
+                content=content,
+                id=node.id,
+                name=node.name,
+                uin=node.uin,
+                seq=node.seq,
+                time=node.time,
+            )
+
+        def flush() -> None:
+            nonlocal current, current_len
+            if current:
+                nodes.append(make_node(list(current)))
+                current = []
+                current_len = 0
+
+        for comp in node.content:
+            if not isinstance(comp, Plain):
+                current.append(comp)
+                continue
+            for chunk in cls._split_text(comp.text, MAX_ONEBOT_FORWARD_NODE_TEXT_CHARS):
+                if (
+                    current_len
+                    and current_len + len(chunk) > MAX_ONEBOT_FORWARD_NODE_TEXT_CHARS
+                ):
+                    flush()
+                current.append(Plain(chunk))
+                current_len += len(chunk)
+                if current_len >= MAX_ONEBOT_FORWARD_NODE_TEXT_CHARS:
+                    flush()
+        flush()
+        return nodes or [node]
+
+    @classmethod
+    def _split_nodes(cls, nodes: Nodes) -> Nodes:
+        split_nodes: list[Node] = []
+        for node in nodes.nodes:
+            split_nodes.extend(cls._split_node(node))
+        return Nodes(split_nodes)
+
     @classmethod
     async def send_message(
         cls,
@@ -135,10 +238,12 @@ class AiocqhttpMessageEvent(AstrMessageEvent):
             isinstance(seg, Node | Nodes | File) for seg in message_chain.chain
         )
         if not send_one_by_one:
-            ret = await cls._parse_onebot_json(message_chain)
-            if not ret:
-                return
-            await cls._dispatch_send(bot, event, is_group, session_id, ret)
+            for chain in cls._split_plain_chains(message_chain):
+                ret = await cls._parse_onebot_json(chain)
+                if not ret:
+                    continue
+                await cls._dispatch_send(bot, event, is_group, session_id, ret)
+                await asyncio.sleep(0.5)
             return
         for seg in message_chain.chain:
             if isinstance(seg, Node | Nodes):
@@ -146,6 +251,7 @@ class AiocqhttpMessageEvent(AstrMessageEvent):
                 if isinstance(seg, Node):
                     nodes = Nodes([seg])
                     seg = nodes
+                seg = cls._split_nodes(seg)
 
                 payload = await seg.to_dict()
 
