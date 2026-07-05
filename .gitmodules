@@ -1,0 +1,3 @@
+[submodule "plugins/astrbot_plugin_agentic_RPG"]
+	path = plugins/astrbot_plugin_agentic_RPG
+	url = https://github.com/GeriantHartman/astrbot_plugin_agentic_RPG.git
