@@ -55,6 +55,12 @@ from ...follow_up import (
 
 
 class InternalAgentSubStage(Stage):
+    # Fork-local defaults so helpers such as `_save_to_history` stay usable on a
+    # bare instance (tests, and any caller that skips `initialize`).
+    dynamic_tool_reduction: bool = False
+    discard_tool_call_briefings: bool = False
+    tool_calls_history_mode: str = "full"
+
     async def initialize(self, ctx: PipelineContext) -> None:
         self.ctx = ctx
         conf = ctx.astrbot_config

@@ -11,7 +11,10 @@ from astrbot.core.provider.sources.openai_source import ProviderOpenAIOfficial
         ("<think>First\nsecond</think>Answer", None, "Answer", "First\nsecond"),
         ("<thinking>First\nsecond</thinking>Answer", None, "Answer", "First\nsecond"),
         ("<thinking></thinking>Answer", None, "Answer", ""),
-        ("<thinking>Only reasoning</thinking>", None, "", "Only reasoning"),
+        # Fork behavior: when a response carries only reasoning and no answer,
+        # the reasoning is swapped into content so the user does not get a blank
+        # reply. Upstream leaves content empty here.
+        ("<thinking>Only reasoning</thinking>", None, "Only reasoning", ""),
         (
             "<think>One</think><thinking>Two</thinking>Answer",
             None,

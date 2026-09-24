@@ -81,9 +81,9 @@ class HelpCommand:
         return parts[1].strip()
 
     def _build_help_topic_message(self, topic: str) -> str:
-        normalized = self.HELP_TOPICS.get(topic.strip().lower()) or self.HELP_TOPICS.get(
-            topic.strip()
-        )
+        normalized = self.HELP_TOPICS.get(
+            topic.strip().lower()
+        ) or self.HELP_TOPICS.get(topic.strip())
         if normalized == "splendor":
             return self._build_splendor_help_message()
         return ""

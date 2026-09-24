@@ -1063,6 +1063,21 @@ class ToolLoopAgentRunner(BaseAgentRunner[TContext]):
                                 ),
                             ),
                         )
+                    # The briefing that came with the tool call was buffered in the
+                    # main path and would otherwise be lost here, because this
+                    # branch returns before the buffer-flushing `else` above ever
+                    # runs. Flush it as its own message; when
+                    # discard_tool_call_briefings is on the buffer is empty and
+                    # nothing is emitted.
+                    if self._pending_text_buffer:
+                        buffered = "\n\n".join(self._pending_text_buffer)
+                        self._pending_text_buffer.clear()
+                        yield AgentResponse(
+                            type="llm_result",
+                            data=AgentResponseData(
+                                chain=MessageChain().message(buffered),
+                            ),
+                        )
                     if llm_resp.result_chain:
                         yield AgentResponse(
                             type="llm_result",

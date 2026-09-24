@@ -375,9 +375,7 @@ class SessionManagementService:
                 svc_config.get("session_enabled", True) if svc_config else True
             )
             llm_enabled = svc_config.get("llm_enabled", True) if svc_config else True
-            tts_enabled = (
-                svc_config.get("tts_enabled", False) if svc_config else False
-            )
+            tts_enabled = svc_config.get("tts_enabled", False) if svc_config else False
 
             if search:
                 search_lower = search.lower()

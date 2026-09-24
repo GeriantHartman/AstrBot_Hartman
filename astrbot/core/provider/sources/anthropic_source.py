@@ -188,7 +188,22 @@ class ProviderAnthropic(Provider):
             messages,
             provider_family="native_top_level_system",
         )
+        # A caller-supplied structured system prompt (a list of content blocks)
+        # must reach the API intact: flattening it to text would drop per-block
+        # fields such as cache_control.
+        structured_system: list | None = None
+        if (
+            messages
+            and messages[0].get("role") == "system"
+            and isinstance(messages[0].get("content"), list)
+            and (len(messages) == 1 or messages[1].get("role") != "system")
+        ):
+            structured_system = messages[0]["content"]
+            messages = messages[1:]
+
         system_prompt, messages = split_leading_system_messages(messages)
+        if structured_system is not None:
+            system_prompt = structured_system
         new_messages = []
         for message in messages:
             if message["role"] == "system":
