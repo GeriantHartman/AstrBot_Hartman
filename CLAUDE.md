@@ -356,9 +356,12 @@ class MyPlugin(star.Star):
 **10. 插件注册的静态页面需要 JWT 豁免才能直接打开 (已修复)**
 - **文件**：`astrbot/dashboard/server.py`（`allowed_endpoints` 列表）
 - **状况**：`context.register_web_api(route="/rpg-chat-template-editor", methods=["GET"], ...)` 注册的插件自定义页面最终由 `/api/plug/<path>` 统一分发。`auth_middleware` 对任何 `/api/*` 请求强制 JWT 校验，用户直接在浏览器打开 `http://localhost:6185/api/plug/rpg-chat-template-editor` 会返回 `{"status":"error","message":"未授权","data":null}` 401。夹在 AstrBot 主面板 iframe 里、或手动在浏览器里访问，都会失败。
-- **修复措施**：把插件注册的 **只读静态页面** 路径加入白名单，跳过 JWT。合并后该列表在
-  `astrbot/dashboard/server.py` 中已更名为 `allowed_endpoint_prefixes`（约 343 行），
-  `/api/plug/rpg-chat-template-editor` 已在其中。数据读写接口（例如 `/api/plug/rpg-chat-template` GET/POST）仍然需要 JWT，由页面 JS 从 `localStorage.token` 读出后以 `Authorization: Bearer` 头携带。目前已加入：`/api/plug/rpg-chat-template-editor`（Agentic RPG 的 Chat Template 可视化编辑器，历史名 rpg-preset-editor）。未来其它插件若有类似需求，在同一数组里追加。
+- **修复措施**：把插件注册的 **只读静态页面** 路径加入白名单，跳过 JWT。
+- **v4.28 基底需要改两处，只改一处无效**：上游把后台迁到 FastAPI 后，`/api/plug/{path}` 这条路由自身还有一层 `Depends(require_dashboard_user)`，它在 `server.py` 的中间件之后运行。中间件放行了，这一层照样 401。
+  - 唯一来源：`astrbot/dashboard/api/auth.py` 的 `PUBLIC_PLUGIN_ENDPOINT_PREFIXES`，新增路径改这里。
+  - `astrbot/dashboard/server.py` 的 `allowed_endpoint_prefixes` 展开引用它。
+  - `astrbot/dashboard/api/plugins.py` 的 `dashboard_plugin_extension_route` 用 `optional_dashboard_user` 而不是 `require_dashboard_user`。
+- 验证：`uv run python scripts/research/check_plugin_web_routes.py`（需先启动 AstrBot）。编辑器页无 JWT 应 200 text/html，数据接口无 JWT 应 401、带 JWT 应 200 JSON。数据读写接口（例如 `/api/plug/rpg-chat-template` GET/POST）仍然需要 JWT，由页面 JS 从 `localStorage.token` 读出后以 `Authorization: Bearer` 头携带。目前已加入：`/api/plug/rpg-chat-template-editor`（Agentic RPG 的 Chat Template 可视化编辑器，历史名 rpg-preset-editor）。未来其它插件若有类似需求，在同一数组里追加。
 - 如果后续 AstrBot 官方升级覆盖了 `server.py`，必须重新补齐这些白名单项，否则插件页面会在浏览器里失去访问。
 
 **11. `_save_to_history` 对 system role 漏识别 `_no_save` (已修复)**
@@ -400,6 +403,27 @@ class MyPlugin(star.Star):
 - QQ 长文本切分、读历史容忍 BOM（`json_utils.json_loads_no_bom`）、工具定义按名字排序、`/stop` 硬中止、TTS 默认关闭。
 - `openai_source.py`：内容为空但 `reasoning_content` 非空时，把 reasoning 换进 content，避免空回复。这会让「整段都是 thinking 块」的响应产出非空正文，与上游测试预期相反（本地已调整该用例）。
 - **已知失效的本地功能（未修）**：`dynamic_tool_reduction` 算出了精简后的工具列表，但 `_query`/`_query_stream` 实际仍发送完整列表，该开关从未真正生效。
+
+## 旧 RPG 插件在 v4.28 基底上的兼容性
+
+上线时新旧插件共存，所以旧插件必须能在新基底上跑。已验证：
+
+- 插件加载正常（15 prompts / 9 styles / 20 canonical characters / 42 tools），`initialize()` 无异常。
+- 77 处 `from astrbot ...` 导入全部解析，`llm_generate` / `tool_loop_agent` / `register_web_api` / `kb_manager.retrieve` / `conversation_manager` 的调用参数全部匹配当前签名。
+- Chat Template 编辑器页与数据接口在 FastAPI 上行为正确（见上面第 10 条）。插件里的 `quart.jsonify` 走上游兼容层，可用。
+- 插件测试 54 项全部通过。
+
+需要插件侧配合的改动（已在插件分支 `compat/astrbot-4.28` 上修复）：
+
+- `_prepare_native_request` 在 v4.28 变成了协程。`handlers/hooks.py` 的 `_build_provider_payload_preview` 原先同步调用它，会拿到未 await 的 coroutine，审计里的 provider payload 预览静默退化成 `preview_error`。修复方式是把该方法与 `_build_narrative_audit_view` 改成 async，并用 `inspect.isawaitable` 同时兼容新旧 core。
+
+排查脚本（都在 `scripts/research/`）：
+
+- `check_plugin_api_compat.py` — 静态检查插件导入的 astrbot API 是否都还在。
+- `check_plugin_call_sites.py` — 检查插件传给核心 API 的关键字参数是否仍被接受。
+- `check_plugin_web_routes.py` — 对运行中的实例检查插件 web 路由的鉴权行为。
+
+**未验证**：完整的一轮 RP 对话（Router 工具循环 → Director → Narrator → 记忆归档）需要配置真实 provider，本次没有跑。上线前请在测试 session 里走一轮完整对话。
 
 ## Skill routing
 

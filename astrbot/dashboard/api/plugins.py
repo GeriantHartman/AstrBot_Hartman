@@ -49,7 +49,12 @@ from astrbot.dashboard.services.plugin_service import (
     PluginServiceWarning,
 )
 
-from .auth import AuthContext, ScopeDependency, require_dashboard_user
+from .auth import (
+    AuthContext,
+    ScopeDependency,
+    optional_dashboard_user,
+    require_dashboard_user,
+)
 from .multipart import multipart_parts
 
 router = APIRouter(tags=["Plugins"])
@@ -1507,6 +1512,9 @@ async def dashboard_get_plugin_page_asset(
 async def dashboard_plugin_extension_route(
     plugin_path: str,
     request: Request,
-    username: str = Depends(require_dashboard_user),
+    # `optional_dashboard_user`, not `require_dashboard_user`: the middleware
+    # whitelist in server.py cannot exempt this route on its own, because this
+    # dependency runs afterwards and would still reject the request.
+    username: str = Depends(optional_dashboard_user),
 ):
     return await _call_plugin_extension(plugin_path, request, username)

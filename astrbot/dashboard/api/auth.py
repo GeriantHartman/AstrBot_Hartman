@@ -29,6 +29,22 @@ from astrbot.dashboard.services.auth_service import (
 
 DESKTOP_SESSION_HEADER = "X-AstrBot-Desktop-Session"
 
+# Fork-local: read-only pages registered by plugins via `register_web_api` that
+# may be opened directly in a browser without a dashboard JWT. They only serve
+# HTML/JS assets that contain no secrets; the plugin's own data endpoints stay
+# behind JWT. Both `server.py`'s auth middleware and the FastAPI
+# `/api/plug/{path}` route consult this list — adding a path to only one of them
+# is not enough. See CLAUDE.md "Known Core Provider Bugs & Fixes" #10.
+PUBLIC_PLUGIN_ENDPOINT_PREFIXES: tuple[str, ...] = (
+    "/api/plug/rpg-chat-template-editor",
+)
+
+
+def is_public_plugin_endpoint(path: str) -> bool:
+    """Whether `path` is a plugin page that is exempt from dashboard auth."""
+    return any(path.startswith(prefix) for prefix in PUBLIC_PLUGIN_ENDPOINT_PREFIXES)
+
+
 router = APIRouter(tags=["Auth"])
 legacy_router = APIRouter(
     prefix="/api/auth",
@@ -127,6 +143,17 @@ async def require_dashboard_user(request: Request) -> str:
     if not isinstance(username, str) or not username.strip():
         raise ApiError("Token 无效", status_code=401)
     return username
+
+
+async def optional_dashboard_user(request: Request) -> str:
+    """Like `require_dashboard_user`, but lets public plugin pages through.
+
+    Used by the legacy `/api/plug/{path}` route so a plugin's read-only editor
+    page can be opened straight from the browser address bar.
+    """
+    if is_public_plugin_endpoint(request.url.path):
+        return _get_dashboard_state_username(request) or "anonymous"
+    return await require_dashboard_user(request)
 
 
 async def _require_api_key_scope(

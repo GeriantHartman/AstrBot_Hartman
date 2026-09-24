@@ -1,10 +1,13 @@
 from types import SimpleNamespace
 
+import pytest
+
 from astrbot.core.provider.sources.gemini_source import ProviderGoogleGenAI
 from plugins.astrbot_plugin_agentic_RPG.handlers.hooks import HookHandler
 
 
-def test_provider_payload_preview_uses_gemini_native_shape():
+@pytest.mark.asyncio
+async def test_provider_payload_preview_uses_gemini_native_shape():
     provider = object.__new__(ProviderGoogleGenAI)
     provider.provider_config = {}
     handler = object.__new__(HookHandler)
@@ -12,7 +15,7 @@ def test_provider_payload_preview_uses_gemini_native_shape():
         context=SimpleNamespace(get_provider_by_id=lambda _: provider)
     )
 
-    preview = handler._build_provider_payload_preview(
+    preview = await handler._build_provider_payload_preview(
         req=SimpleNamespace(
             system_prompt="global",
             contexts=[

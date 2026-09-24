@@ -32,6 +32,7 @@ from astrbot.dashboard.services.chat_service import MAX_UPLOAD_FILE_SIZE_BYTES
 from astrbot.dashboard.services.config_service import MAX_FILE_BYTES
 
 from .api.app import create_dashboard_asgi_app
+from .api.auth import PUBLIC_PLUGIN_ENDPOINT_PREFIXES
 from .plugin_page_auth import PluginPageAuth
 from .services.auth_service import DASHBOARD_JWT_COOKIE_NAME
 
@@ -348,8 +349,9 @@ class AstrBotDashboard:
             "/api/backup/download",  # 备份下载使用 URL 参数传递 token
             # 插件注册的公共静态页面 — 这些 endpoint 只返回不含密钥的 HTML/JS
             # 资产；实际数据读写仍由插件自己的 API 路径 + 鉴权逻辑控制。
-            # 新增时把路径加到这个列表。Agentic RPG 的 chat template 编辑器走这里。
-            "/api/plug/rpg-chat-template-editor",
+            # 新增时改 api/auth.py 的 PUBLIC_PLUGIN_ENDPOINT_PREFIXES，那里是唯一来源：
+            # /api/plug/{path} 路由自身还有一层 Depends，只改这里不生效。
+            *PUBLIC_PLUGIN_ENDPOINT_PREFIXES,
         ]
         if path in allowed_exact_endpoints or any(
             path.startswith(prefix) for prefix in allowed_endpoint_prefixes
