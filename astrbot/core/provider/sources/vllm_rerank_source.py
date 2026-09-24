@@ -1,7 +1,5 @@
 import aiohttp
 
-from astrbot import logger
-
 from ..entities import ProviderType, RerankResult
 from ..provider import RerankProvider
 from ..register import register_provider_adapter
@@ -28,7 +26,7 @@ class VLLMRerankProvider(RerankProvider):
         self.timeout = provider_config.get("timeout", 20)
         self.model = provider_config.get("rerank_model", "BAAI/bge-reranker-base")
 
-        h = {}
+        h = self.request_headers.copy()
         if self.auth_key:
             h["Authorization"] = f"Bearer {self.auth_key}"
         self.client = aiohttp.ClientSession(
@@ -42,6 +40,9 @@ class VLLMRerankProvider(RerankProvider):
         documents: list[str],
         top_n: int | None = None,
     ) -> list[RerankResult]:
+        if not documents:
+            return []
+
         payload = {
             "query": query,
             "documents": documents,
@@ -49,75 +50,55 @@ class VLLMRerankProvider(RerankProvider):
         }
         if top_n is not None:
             payload["top_n"] = top_n
-        url = self.base_url
-        if not url.endswith("/rerank"):
-            if url.endswith("/v1"):
-                url = f"{url}/rerank"
-            else:
-                url = f"{url}/v1/rerank"
 
         assert self.client is not None
-        rerank_url = f"{self.base_url}{self.api_suffix}"
+        # Tolerate an api_base that already contains the version prefix or the
+        # full rerank endpoint, so "http://host/v1" + "/v1/rerank" does not 404.
+        if self.base_url.endswith("/rerank"):
+            rerank_url = self.base_url
+        elif self.base_url.endswith("/v1") and self.api_suffix.startswith("/v1/"):
+            rerank_url = f"{self.base_url}{self.api_suffix.removeprefix('/v1')}"
+        else:
+            rerank_url = f"{self.base_url}{self.api_suffix}"
+        async with self.client.post(
+            rerank_url,
+            json=payload,
+        ) as response:
+            response.raise_for_status()
+            response_data = await response.json()
+            if not isinstance(response_data, dict):
+                raise ValueError("Rerank API response must be a JSON object")
 
-        logger.info(
-            f"[VLLM Rerank] 准备发起请求 | URL={url} | model={self.model} | query_length={len(query)} | docs_count={len(documents)} | top_n={top_n}"
-        )
-        logger.debug(f"[VLLM Rerank] 请求载荷 (Payload): {payload}")
-
-        try:
-            async with self.client.post(rerank_url, json=payload) as response:
-                response_text = await response.text()
-                logger.info(f"[VLLM Rerank] API响应状态码: {response.status}")
-                if response.status >= 400:
-                    logger.error(
-                        f"[VLLM Rerank] API请求失败，返回内容: {response_text}"
-                    )
-                else:
-                    logger.debug(f"[VLLM Rerank] API返回内容: {response_text}")
-
-                response.raise_for_status()
-
-                import json
-
-                response_data = json.loads(response_text)
-                results = response_data.get("results", [])
-
-                if not results:
-                    logger.warning(
-                        f"[VLLM Rerank] API 返回了空的列表数据。原始响应: {response_data}",
-                    )
-
-                rerank_results = []
-                for idx, result in enumerate(results):
-                    try:
-                        index = result.get("index")
-                        if index is None:
-                            if "document_index" in result:
-                                index = result["document_index"]
-                            elif "document" in result and "index" in result["document"]:
-                                index = result["document"]["index"]
-                            else:
-                                index = idx
-
-                        relevance_score = result.get("relevance_score", 0.0)
-                        rerank_results.append(
-                            RerankResult(
-                                index=int(index),
-                                relevance_score=float(relevance_score),
-                            )
-                        )
-                    except Exception as e:
-                        logger.warning(f"解析结果 {idx} 时出错: {e}, result={result}")
-                        continue
-
-                logger.info(
-                    f"[VLLM Rerank] 重排序完成，成功返回 {len(rerank_results)} 个结果"
+            results = response_data.get("results")
+            if not isinstance(results, list) or not results:
+                raise ValueError(
+                    "Rerank API response must contain a non-empty 'results' list"
                 )
-                return rerank_results
 
-        except aiohttp.ClientError as e:
-            logger.error(f"[VLLM Rerank] 网络请求失败: {e}")
-            raise
+            try:
+                rerank_results = []
+                for result in results:
+                    # Some rerank backends (e.g. bge-reranker-v2-m3 behind
+                    # vLLM-compatible gateways) report the original document
+                    # position as `document_index` or `document.index` instead
+                    # of `index`. Falling back to the enumeration order would
+                    # silently undo the rerank, so probe the known aliases.
+                    index = result.get("index")
+                    if index is None:
+                        index = result.get("document_index")
+                    if index is None and isinstance(result.get("document"), dict):
+                        index = result["document"].get("index")
+                    if index is None:
+                        raise KeyError("index")
+                    rerank_results.append(
+                        RerankResult(
+                            index=int(index),
+                            relevance_score=float(result["relevance_score"]),
+                        )
+                    )
+                return rerank_results
+            except (KeyError, TypeError, ValueError, AttributeError) as exc:
+                raise ValueError("Rerank API returned invalid result data") from exc
 
     async def terminate(self) -> None:
         """关闭客户端会话"""
