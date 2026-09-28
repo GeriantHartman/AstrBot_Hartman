@@ -1,0 +1,4 @@
+# firefly.yaml never_say contains 「不要把"温柔"演成无底线顺从」
+# 「温柔」是角色核心特质，在卡里多处褒义出现，因此排除出字面禁词表。
+never_say_ignore:
+  - 温柔

@@ -364,6 +364,13 @@ class MyPlugin(star.Star):
 - **修复措施**：引入 `_no_truncate` PrivateAttr（`message.py:199` 附近，同时 `bind_checkpoint_messages` 搬运 dict key→PrivateAttr）。插件在注入 message dict 时设置 `"_no_truncate": True`。`truncator._is_pinned(msg)` 返回 `msg.role == "system" or msg._no_truncate`；`truncate_by_turns` 只对 `not _is_pinned` 的 user/assistant 做 `-N*2` 截断，并按原始 index 顺序重建（pinned 保留原位置，truncatable 填充保留项）。`openai_source.py` / `gemini_source.py` 发送前 `del part["_no_truncate"]` 避免 LLM API 收到未知字段。
 - 如果后续 AstrBot 官方升级覆盖了这 4 个文件之一，必须重新补齐（`_no_truncate` PrivateAttr 定义、model_validate 搬运、`_is_pinned` 三-pool 分类、sources 的 del 字段）。验证方法：在 RPG 插件里打开一个长 session（> `keep_most_recent_turns`），对比第 2 轮和第 20 轮的 OpenAI Request payload，few-shot 段字节必须完全一致。
 
+**13. Gemini 多 Key 并发 429 轮换崩溃 `list.remove(x): x not in list` (已修复)**
+- **文件**：`astrbot/core/provider/sources/gemini_source.py`（`_handle_api_error`）
+- **状况**：每个请求在 `text_chat` / `text_chat_stream` 里拷贝一份自己的 `keys` 列表，但 `self.chosen_api_key` 是同一个 provider 实例上所有并发请求**共享**的。请求 A 撞 429 后把共享 key 换成 K2；如果请求 B 早先已从自己的列表里删掉了 K2，B 再撞 429 时执行 `keys.remove(self.chosen_api_key)` 就抛 `ValueError`，整条请求失败，不会继续换 key。多个会话同时撞 Gemini 限流（例如免费层每日额度用完）时必现。
+- **修复措施**：删除前先判断 `self.chosen_api_key in keys`，不在就跳过删除，直接从剩余 key 里随机换一把。测试：`tests/test_gemini_source.py` 的 `test_gemini_429_rotation_*`。
+- 同类隐患（未修，待核实）：`set_key()` 会重建 `self.client`，并发中的其他请求可能因旧 client 被回收而报 `ClientConnectionError: Connector is closed`。
+- 如果后续 AstrBot 官方升级覆盖了 `gemini_source.py`，必须重新补齐这个判断。
+
 ## Skill routing
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill
@@ -383,6 +390,15 @@ Key routing rules:
 - Architecture review → invoke plan-eng-review
 - Save progress, checkpoint, resume → invoke checkpoint
 - Code quality, health check → invoke health
+- RP 跑分、模型 RP 能力对比、验角色卡、角色卡规模排名（bare / YAML / skill 卡）、插件 4.0 vs 5.0 回归 → invoke rp-bench
+
+### RP Bench（角色扮演跑分）
+
+- 工具在 `scripts/rp_bench/`，由 agent 发起，用户不手动跑。完整流程见 `.claude/skills/rp-bench/SKILL.md`（`.codex/skills/rp-bench/SKILL.md` 是同内容副本，改一份必须同步另一份）。
+- 固定玩家台词剧本，打不同的「模型 × 角色卡 × 插件」组合。对照组：`bare`（只给角色名+作品名）、`raw`（canonical YAML 卡）、`skill`（`data/skills/<卡>-skill/` 全文）、`style_skills`、`rpg4`、`rpg5`。
+- 常用方案（`scripts/rp_bench/plans/`）：`bare.yaml` 裸考两个模型；`card-scale.yaml` 同一模型在 bare / raw / skill 三档卡规模下排名；`card-check.yaml` raw vs style_skills；`mvp.yaml` / `regression.yaml` 插件 4.0/5.0 与改动前后回归。
+- 已有跑次补对照组用 `all --resume <run_dir> --add-arms <arm>`，不要重开跑次。产物在 `data/rp_bench/runs/<UTC+8时间>-<plan名>/`，先读 `index.md` 和 `compare/`。
+- 没有裁判时的排名是阅读判断，汇报必须引原文、写样本量；设定核对以对应角色卡原文为准。
 
 ### RPG tool analysis and audit maintenance
 

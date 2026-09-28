@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -7,6 +8,7 @@ from plugins.astrbot_plugin_agentic_RPG.core.canonical_character_loader import (
     CanonicalCharacterRegistry,
 )
 from plugins.astrbot_plugin_agentic_RPG.core.database import DatabaseManager
+from plugins.astrbot_plugin_agentic_RPG.core.prompt_loader import PromptLoader
 from plugins.astrbot_plugin_agentic_RPG.core.state_machine import WorldStateMachine
 from plugins.astrbot_plugin_agentic_RPG.handlers.npc_character_contract import (
     build_character_contract,
@@ -62,6 +64,243 @@ def test_character_contract_preserves_router_creation_spec():
     assert "不要写成冒险队成员" in rendered
 
 
+def test_character_contract_persists_generation_requirements_and_story_anchors():
+    spec = extract_creation_contract_spec(
+        {
+            "requirements": "她的当前任务必须承接方舟失踪案，保留医疗官身份",
+        }
+    )
+    contract = build_character_contract(
+        name="星织",
+        npc_type="mhy",
+        role_hint="创世圣群医疗官",
+        location="织世号医疗隔离层",
+        profile_text="星织正在追查隔离层的失踪记录。",
+        npc_profile={
+            "nationality": "创世圣群",
+            "race": "创世圣群天使",
+            "faction": "创世圣群医疗序列",
+            "background": "她在方舟医疗序列中完成培育与专业训练。",
+            "childhood": "幼年期在圣群共同育成舱学习照护与共情。",
+            "growth": "成长阶段进入医疗序列并参与星门救援。",
+            "current_experience": "正在追查隔离层的失踪记录。",
+            "goal": "找到失踪者并修复医疗序列的信任。",
+            "core_drive": "不让任何被救回方舟的人再次被遗弃。",
+        },
+        creation_spec=spec,
+    )
+
+    rendered = render_character_contract(contract, compact=False)
+
+    assert contract["scene_contract"]["generation_requirements"].startswith(
+        "她的当前任务"
+    )
+    assert contract["story_anchors"]["current_experience"] == (
+        "正在追查隔离层的失踪记录。"
+    )
+    assert contract["story_anchors"]["core_drive"].startswith("不让任何")
+    assert "剧情连续性锚点" in rendered
+    assert "不是一次性灵感" in rendered
+
+
+def test_astera_profile_metadata_keeps_nationality_and_story_fields():
+    metadata = NpcToolHandler._merge_original_npc_profile_metadata(
+        {
+            "source_mode": "原创角色",
+            "nationality": "维塔利亚联邦",
+            "race": "兽耳族",
+            "lineage": "鲁珀谱系",
+            "ability_medium": "灾晶器械",
+            "faction": "联邦边境救援队",
+            "current_experience": "正在风蚀荒原搜救失踪车队。",
+        },
+        {},
+    )
+
+    assert metadata["nationality"] == "维塔利亚联邦"
+    assert metadata["lineage"] == "鲁珀谱系"
+    assert metadata["ability_medium"] == "灾晶器械"
+    assert metadata["current_experience"].endswith("失踪车队。")
+
+
+@pytest.mark.asyncio
+async def test_scene_generation_context_includes_preset_population_rule():
+    preset_path = Path(
+        "plugins/astrbot_plugin_agentic_RPG/presets/astera-convergence.json"
+    )
+    preset = json.loads(preset_path.read_text(encoding="utf-8"))
+
+    class FakeState:
+        async def get_zone(self, session_id, local_id):
+            return SimpleNamespace(
+                area_id="area_ship",
+                location_name="织世号星门大厅",
+                privacy="semi_private",
+                environment_desc="星门处于受控开启状态，医疗与警戒序列正在值勤。",
+            )
+
+        async def get_area(self, session_id, area_id):
+            return SimpleNamespace(
+                area_id=area_id,
+                name="创世圣群方舟织世号",
+                description="创世圣群的白色方舟。",
+            )
+
+        async def get_active_area_story(self, session_id, area_id):
+            return None
+
+    handler = NpcToolHandler(SimpleNamespace(state=FakeState()))
+    context = await handler._build_npc_generation_scene_context(
+        "session",
+        preset,
+        local_id="zone_ship_gate",
+        location="织世号星门大厅",
+    )
+
+    assert "默认势力/组织: 创世圣群" in context
+    assert "方舟常驻人形 NPC 只能是座天使" in context
+    assert "不能自动成为圣群成员" in context
+    assert "zone privacy: semi_private" in context
+
+
+@pytest.mark.asyncio
+async def test_astera_generation_persists_profile_and_receives_story_context(
+    monkeypatch,
+):
+    preset_path = Path(
+        "plugins/astrbot_plugin_agentic_RPG/presets/astera-convergence.json"
+    )
+    preset = json.loads(preset_path.read_text(encoding="utf-8"))
+    captured = {}
+
+    class FakePersonaManager:
+        async def get_default_persona_v3(self, umo):
+            return {"prompt": "阿斯特拉世界主持人"}
+
+    class FakeLlmContext:
+        kb_manager = None
+        persona_manager = FakePersonaManager()
+
+        async def llm_generate(self, **kwargs):
+            captured["prompt"] = kwargs["prompt"]
+            return SimpleNamespace(
+                completion_text=json.dumps(
+                    {
+                        "profile_text": "星织是织世号医疗序列的智天使，正在追查隔离层失踪记录。",
+                        "npc_profile": {
+                            "source_mode": "原创角色",
+                            "nationality": "创世圣群",
+                            "race": "创世圣群天使",
+                            "path": "智识+繁育",
+                            "magic": "源质系",
+                            "faction": "创世圣群医疗序列",
+                            "background": "她在方舟医疗序列中完成培育。",
+                            "current_experience": "正在追查隔离层失踪记录。",
+                            "goal": "找回失踪者。",
+                            "core_drive": "不放弃任何被救援者。",
+                        },
+                        "personality_tags": ["温柔", "敏锐", "医疗官"],
+                        "secret": "她怀疑失踪事件与内部权限滥用有关。",
+                        "attributes": {
+                            "STR": 8,
+                            "AGI": 10,
+                            "INT": 16,
+                            "CHA": 14,
+                            "LUK": 9,
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+            )
+
+    class FakeState:
+        async def get_zone(self, session_id, local_id):
+            return SimpleNamespace(
+                area_id="area_ship",
+                location_name="织世号医疗隔离层",
+                privacy="semi_private",
+                environment_desc="隔离层刚发生一宗人员失踪事件。",
+            )
+
+        async def get_area(self, session_id, area_id):
+            return SimpleNamespace(
+                area_id=area_id,
+                name="创世圣群方舟织世号",
+                description="医疗序列与警戒序列正在联合调查。",
+            )
+
+        async def get_active_area_story(self, session_id, area_id):
+            return SimpleNamespace(
+                story_id="story_missing",
+                title="隔离层失踪案",
+                current_stage="封锁与排查",
+                briefing="一名受保护访客在隔离层失踪。",
+            )
+
+        async def get_area_story_tasks(self, session_id, story_id):
+            return [
+                SimpleNamespace(
+                    title="核对医疗权限记录",
+                    status="进行中",
+                    progress="尚未定位异常授权者",
+                    description="",
+                )
+            ]
+
+        async def get_canon_by_topic(self, session_id, topic):
+            return []
+
+        async def get_session_canon(self, session_id, **kwargs):
+            return []
+
+        async def get_time_info(self, session_id):
+            return {"time_slice": "夜晚"}
+
+    class TestNpcHandler(NpcToolHandler):
+        async def _get_session_preset(self, session_id):
+            return preset
+
+        async def _get_conversation_summary(self, session_id):
+            return "玩家刚要求医疗序列调查隔离层失踪事件。"
+
+        async def _get_provider_id(self, event):
+            return "test-provider"
+
+    async def fake_tendency(ctx, session_id):
+        return "玩家偏好严肃调查与角色连续性。"
+
+    monkeypatch.setattr(
+        "plugins.astrbot_plugin_agentic_RPG.handlers.player_tendency.get_or_infer_tendency",
+        fake_tendency,
+    )
+    ctx = SimpleNamespace(
+        state=FakeState(),
+        context=FakeLlmContext(),
+        prompts=PromptLoader(Path("plugins/astrbot_plugin_agentic_RPG/prompts.yaml")),
+        plugin_config={},
+    )
+    handler = TestNpcHandler(ctx)
+    result = await handler._generate_npc_profile_data(
+        event=SimpleNamespace(),
+        session_id="session",
+        npc_name="星织",
+        role_hint="创世圣群医疗官",
+        location="织世号医疗隔离层",
+        npc_type="",
+        local_id="zone_medical",
+        generation_requirements="保留医疗官身份，身世与失踪案相连。",
+    )
+
+    profile = result["voice_fingerprint"]["npc_profile"]
+    assert result["voice_fingerprint"]["profile_type"] == "mhy"
+    assert profile["faction"] == "创世圣群医疗序列"
+    assert profile["current_experience"] == "正在追查隔离层失踪记录。"
+    assert "方舟常驻人形 NPC 只能是座天使" in captured["prompt"]
+    assert "隔离层失踪案" in captured["prompt"]
+    assert "玩家刚要求医疗序列调查" in captured["prompt"]
+    assert "保留医疗官身份" in captured["prompt"]
+
+
 def test_character_contract_renders_scene_location_name_instead_of_internal_id():
     internal_location_id = "446c95999bdd9519"
     persisted = build_character_contract(
@@ -100,6 +339,41 @@ def test_generate_npcs_exact_name_match_does_not_match_single_character_substrin
     assert NpcToolHandler._is_exact_requested_npc_name("琳", "琳", "临时接待员")
     assert not NpcToolHandler._is_exact_requested_npc_name("艾琳", "琳")
     assert not NpcToolHandler._is_exact_requested_npc_name("琳", "艾琳")
+
+
+@pytest.mark.asyncio
+async def test_vip_canonical_card_overrides_erroneous_original_npc_type():
+    preset = json.loads(
+        Path("plugins/astrbot_plugin_agentic_RPG/presets/new-elysium.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    class TestNpcHandler(NpcToolHandler):
+        async def _get_session_preset(self, session_id):
+            return preset
+
+    handler = TestNpcHandler(SimpleNamespace())
+    resolved_type, canonical_entry = handler._resolve_canonical_generation_mode(
+        "维琳娜·艾嘉德",
+        "original",
+    )
+    result = await handler._generate_npc_profile_data(
+        event=SimpleNamespace(),
+        session_id="session",
+        npc_name="维琳娜·艾嘉德",
+        role_hint="交换生",
+        location="学园城学生公寓大厅",
+        npc_type="original",
+    )
+
+    assert resolved_type == "mhy"
+    assert canonical_entry is not None
+    assert canonical_entry["tier"] == "vip"
+    assert result["canonical_name"] == "维琳娜·艾嘉德"
+    assert result["voice_fingerprint"]["tier"] == "vip"
+    assert result["voice_fingerprint"]["profile_type"] == "mhy"
+    assert "罗斯凯利法" in result["profile_text"]
 
 
 def test_canonical_identity_aliases_preserve_distinct_veliona_entity():

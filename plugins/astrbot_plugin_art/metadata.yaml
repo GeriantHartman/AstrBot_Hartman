@@ -1,0 +1,6 @@
+name: astrbot_plugin_art
+display_name: "Art 剧作家"
+desc: "剧作家引擎插件 - 让玩家当消费者。编剧排事件，演员演神韵，四层变数与无数值关系账本。"
+version: 1.0.0
+author: Hartman
+astrbot_version: ">=4.5.7"

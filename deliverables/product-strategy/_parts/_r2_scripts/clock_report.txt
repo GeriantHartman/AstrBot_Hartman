@@ -1,0 +1,334 @@
+CLOCK BASELINE RE-MEASUREMENT
+L1 = scenes.time_slice (active scene, player-authoritative per code 3630)
+L3 = game_sessions.current_time_slice (legacy, advance_scene_time NEVER writes it)
+L4 = zones.time_slice
+==============================================================================
+
+default:FriendMessage:2438094710
+  L1(active scene)='午休'  L3(current_time_slice)='上午'  max_slice='午休'  L1==L3? False
+  scenes(n=66, active=1): [('早晨', 0), ('早晨', 0), ('上午', 0), ('午休', 0), ('午休', 0), ('下午', 0), ('早晨', 0), ('早晨', 0), ('上午', 0), ('上午', 0), ('早晨', 0), ('早晨', 0), ('傍晚', 0), ('傍晚', 0), ('上午', 0), ('午休', 0), ('午休', 0), ('深夜', 0), ('早晨', 0), ('上午', 0), ('午休', 0), ('午休', 0), ('午休', 0), ('午休', 0), ('下午', 0), ('早晨', 0), ('上午', 0), ('午休', 0), ('下午', 0), ('早晨', 0), ('早晨', 0), ('上午', 0), ('午休', 0), ('午休', 0), ('下午', 0), ('下午', 0), ('傍晚', 0), ('傍晚', 0), ('傍晚', 0), ('早晨', 0), ('早晨', 0), ('早晨', 0), ('早晨', 0), ('上午', 0), ('午休', 0), ('下午', 0), ('下午', 0), ('傍晚', 0), ('深夜', 0), ('早晨', 0), ('早晨', 0), ('上午', 0), ('上午', 0), ('午休', 0), ('下午', 0), ('傍晚', 0), ('深夜', 0), ('早晨', 0), ('早晨', 0), ('早晨', 0), ('上午', 0), ('早晨', 0), ('早晨', 0), ('上午', 0), ('午休', 0), ('午休', 1)]
+  zones(n=42): match L3=7  match L1=12
+     zone '黄金庭院公寓大厅' t='早晨'  MISMATCH
+     zone '电梯间' t='早晨'  MISMATCH
+     zone '公寓大厅' t='早晨'  MISMATCH
+     zone '甜蜜果园摊位' t='午休'  OK-L1
+     zone '星语花坊' t='午休'  OK-L1
+     zone '黄金庭院公寓五楼走廊' t='下午'  MISMATCH
+     zone '中央公园化妆区' t='早晨'  MISMATCH
+     zone '老街区·秘密小路' t='早晨'  MISMATCH
+     zone '老街甜品店·秘密角落' t='上午'  ONLY-L3
+     zone '小巷拉面店' t='傍晚'  MISMATCH
+     zone '创意园区商业街' t='午休'  OK-L1
+     zone '创意园区录音棚' t='午休'  OK-L1
+     zone '黄金庭院公寓504室' t='深夜'  MISMATCH
+     zone '新爱莉都·晨曦山顶观景台' t='早晨'  MISMATCH
+     zone '老街锁匠铺' t='上午'  ONLY-L3
+     zone '老牌酸梅汤店' t='午休'  OK-L1
+     zone '老陈锁匠铺' t='午休'  OK-L1
+     zone '老陈面馆' t='午休'  OK-L1
+     zone '挂锁山道' t='午休'  OK-L1
+     zone '山顶观景台' t='上午'  ONLY-L3
+     zone '星空观景台' t='午休'  OK-L1
+     zone '黄金庭院早市超市' t='早晨'  MISMATCH
+     zone '烤鲭鱼定食屋' t='午休'  OK-L1
+     zone '河堤' t='早晨'  MISMATCH
+     zone '樱花树下的家庭餐厅' t='早晨'  MISMATCH
+     zone '504的小窝' t='傍晚'  MISMATCH
+     zone '黄金庭院商业街' t='深夜'  MISMATCH
+     zone '黄金庭院文艺工作室' t='上午'  ONLY-L3
+     zone '黄金庭院商场' t='早晨'  MISMATCH
+     zone '服饰店' t='早晨'  MISMATCH
+     zone '我的公寓' t='上午'  ONLY-L3
+     zone '爱莉希雅的公寓' t='上午'  ONLY-L3
+     zone '摄影棚' t='傍晚'  MISMATCH
+     zone '商业街' t='下午'  MISMATCH
+     zone '江边海鲜餐厅' t='深夜'  MISMATCH
+     zone '老街面馆' t='早晨'  MISMATCH
+     zone '老街街角小花圃' t='早晨'  MISMATCH
+     zone '超市' t='早晨'  MISMATCH
+     zone '爱莉希雅的家' t='上午'  ONLY-L3
+     zone '黄金庭院沙滩' t='早晨'  MISMATCH
+     zone '时光杂货铺' t='午休'  OK-L1
+     zone '原理工作室' t='午休'  OK-L1
+     player 2438094710(【野火】new-elysium) current_local_id='69c79d8259427def'
+
+default:FriendMessage:245432630
+  L1(active scene)='早晨'  L3(current_time_slice)='早晨'  max_slice=''  L1==L3? True
+  scenes(n=2, active=1): [('早晨', 0), ('早晨', 1)]
+  zones(n=2): match L3=2  match L1=2
+     zone '黄金庭院公寓大厅' t='早晨'  OK-L1
+     zone '爱莉希雅的房间' t='早晨'  OK-L1
+     player 245432630(星) current_local_id='85bb4c70716b98a8'
+
+default:FriendMessage:942361330
+  L1(active scene)='上午'  L3(current_time_slice)='早晨'  max_slice='上午'  L1==L3? False
+  scenes(n=21, active=1): [('早晨', 0), ('下午', 0), ('下午', 0), ('下午', 0), ('下午', 0), ('下午', 0), ('下午', 0), ('早晨', 0), ('上午', 0), ('午休', 0), ('午休', 0), ('午休', 0), ('午休', 0), ('午休', 0), ('上午', 0), ('午休', 0), ('下午', 0), ('傍晚', 0), ('深夜', 0), ('早晨', 0), ('上午', 1)]
+  zones(n=16): match L3=3  match L1=2
+     zone '粤菜馆·龙庭' t='早晨'  ONLY-L3
+     zone '旧书屋' t='下午'  MISMATCH
+     zone '爱莉希雅的家' t='下午'  MISMATCH
+     zone '遐蝶的旧居' t='下午'  MISMATCH
+     zone '新爱莉都海滨浴场' t='早晨'  ONLY-L3
+     zone '那边的店' t='上午'  OK-L1
+     zone '海滩排球场' t='午休'  MISMATCH
+     zone '更衣室' t='午休'  MISMATCH
+     zone '泳池' t='午休'  MISMATCH
+     zone '甜品店' t='午休'  MISMATCH
+     zone '伊甸的别墅' t='午休'  MISMATCH
+     zone '伊甸的卧室' t='上午'  OK-L1
+     zone '生活超市' t='傍晚'  MISMATCH
+     zone '风堇的温室' t='下午'  MISMATCH
+     zone '黄金庭院公寓大厅' t='深夜'  MISMATCH
+     zone '了房间' t='早晨'  ONLY-L3
+     player 942361330(墨) current_local_id='933f605f476d660c'
+
+default:GroupMessage:1090658701
+  L1(active scene)='午后'  L3(current_time_slice)='上午'  max_slice='午后'  L1==L3? False
+  scenes(n=34, active=1): [('上午', 0), ('上午', 0), ('上午', 0), ('上午', 0), ('上午', 0), ('上午', 0), ('午后', 0), ('傍晚', 0), ('夜晚', 0), ('深夜', 0), ('清晨', 0), ('上午', 0), ('上午', 0), ('午后', 0), ('傍晚', 0), ('清晨', 0), ('清晨', 0), ('清晨', 0), ('上午', 0), ('清晨', 0), ('午后', 0), ('傍晚', 0), ('傍晚', 0), ('清晨', 0), ('上午', 0), ('上午', 0), ('上午', 0), ('午后', 0), ('傍晚', 0), ('夜晚', 0), ('清晨', 0), ('清晨', 0), ('上午', 0), ('午后', 1)]
+  zones(n=26): match L3=11  match L1=3
+     zone '休伯利安舰桥' t='上午'  ONLY-L3
+     zone '旧舰长室' t='上午'  ONLY-L3
+     zone '休伯利安医疗舱' t='上午'  ONLY-L3
+     zone '布洛妮娅的房间' t='上午'  ONLY-L3
+     zone '天台公园' t='上午'  ONLY-L3
+     zone '德丽莎的办公室' t='午后'  OK-L1
+     zone '布洛妮娅的公寓' t='上午'  ONLY-L3
+     zone '东城区茶庄' t='傍晚'  MISMATCH
+     zone '雷电芽衣的房间' t='深夜'  MISMATCH
+     zone '爱莉希雅家旁的空置公寓' t='上午'  ONLY-L3
+     zone '休伯利安号' t='夜晚'  MISMATCH
+     zone '花园东侧大宅' t='上午'  ONLY-L3
+     zone '附近的商场' t='清晨'  MISMATCH
+     zone '黄金庭院融合区' t='清晨'  MISMATCH
+     zone '黄金庭院东侧大宅' t='上午'  ONLY-L3
+     zone '黄金庭院图书室' t='清晨'  MISMATCH
+     zone '电玩城' t='午后'  OK-L1
+     zone '百货刨冰店' t='傍晚'  MISMATCH
+     zone '情侣酒店' t='傍晚'  MISMATCH
+     zone '黄金庭院后山坡地' t='上午'  ONLY-L3
+     zone '工作室休息室' t='午后'  OK-L1
+     zone '街角甜品店' t='傍晚'  MISMATCH
+     zone '星的房间' t='夜晚'  MISMATCH
+     zone '星的家' t='清晨'  MISMATCH
+     zone '希儿的工作室' t='清晨'  MISMATCH
+     zone '长空市西侧林区' t='上午'  ONLY-L3
+     player 245432630(星) current_local_id='defa0c72a0818baf'
+
+default:GroupMessage:1097436019
+  L1(active scene)='上午'  L3(current_time_slice)='深夜'  max_slice='午休'  L1==L3? False
+  scenes(n=30, active=2): [('傍晚', 0), ('深夜', 0), ('深夜', 0), ('早晨', 0), ('深夜', 0), ('深夜', 0), ('深夜', 0), ('早晨', 0), ('午休', 0), ('上午', 0), ('午休', 0), ('午休', 0), ('午休', 0), ('下午', 0), ('傍晚', 0), ('傍晚', 0), ('傍晚', 0), ('傍晚', 0), ('深夜', 0), ('深夜', 0), ('早晨', 0), ('早晨', 0), ('早晨', 0), ('早晨', 0), ('早晨', 0), ('上午', 1), ('上午', 0), ('上午', 0), ('上午', 0), ('午休', 1)]
+  zones(n=20): match L3=3  match L1=4
+     zone '公寓房间' t='深夜'  ONLY-L3
+     zone '湖畔长椅区' t='午休'  MISMATCH
+     zone '山姆超市' t='上午'  OK-L1
+     zone '帕朵便利店' t='傍晚'  MISMATCH
+     zone '城市街道' t='下午'  MISMATCH
+     zone '孟婆甜品店' t='深夜'  ONLY-L3
+     zone '中央公园' t='傍晚'  MISMATCH
+     zone '蜜糖梦境甜品店' t='午休'  MISMATCH
+     zone '不卜庐' t='午休'  MISMATCH
+     zone '星空酒店808号房' t='午休'  MISMATCH
+     zone '帕朵便利店门口' t='傍晚'  MISMATCH
+     zone '废弃地下室' t='深夜'  ONLY-L3
+     zone '爱莉希雅的房间' t='早晨'  MISMATCH
+     zone '昔涟的房间' t='午休'  MISMATCH
+     zone '黄金庭院公寓大厅' t='早晨'  MISMATCH
+     zone '艺术区·伊甸的私人画廊' t='早晨'  MISMATCH
+     zone '商业街' t='早晨'  MISMATCH
+     zone '星光絮语手工香薰蜡烛店' t='上午'  OK-L1
+     zone '时光书简复古文具店' t='上午'  OK-L1
+     zone '海瑟音的音乐工作室' t='上午'  OK-L1
+     player 245432630(星) current_local_id='365ea4d390f7223b'
+     player 942361330(墨) current_local_id='05b8fcea03ee4c81'
+
+default:GroupMessage:1098307480
+  L1(active scene)='午休'  L3(current_time_slice)='早晨'  max_slice='午休'  L1==L3? False
+  scenes(n=3, active=1): [('早晨', 0), ('上午', 0), ('午休', 1)]
+  zones(n=3): match L3=2  match L1=0
+     zone '往世星海' t='早晨'  ONLY-L3
+     zone '星的房间' t='早晨'  ONLY-L3
+     zone '奶茶店' t='上午'  MISMATCH
+     player 245432630(星) current_local_id='fcc65d2c7cc69168'
+
+default:GroupMessage:218606013
+  L1(active scene)='上午'  L3(current_time_slice)='早晨'  max_slice='上午'  L1==L3? False
+  scenes(n=5, active=2): [('早晨', 0), ('上午', 1), ('早晨', 0), ('上午', 0), ('上午', 1)]
+  zones(n=4): match L3=2  match L1=2
+     zone '往世星海' t='早晨'  ONLY-L3
+     zone '星的房间' t='上午'  OK-L1
+     zone '商业街' t='早晨'  ONLY-L3
+     zone '天衡智库' t='上午'  OK-L1
+     player 245432630(星) current_local_id='923e2c79007a4034'
+     player 942361330(a宝) current_local_id='5c374511e7d05afe'
+
+default:GroupMessage:230394566
+  L1(active scene)='上午'  L3(current_time_slice)='早晨'  max_slice='下午'  L1==L3? False
+  scenes(n=35, active=2): [('早晨', 0), ('上午', 0), ('早晨', 0), ('上午', 0), ('午休', 0), ('午休', 0), ('下午', 0), ('下午', 0), ('傍晚', 0), ('深夜', 0), ('早晨', 0), ('早晨', 0), ('早晨', 0), ('上午', 0), ('早晨', 0), ('上午', 0), ('午休', 0), ('午休', 0), ('午休', 0), ('下午', 0), ('下午', 0), ('傍晚', 0), ('上午', 0), ('早晨', 0), ('午休', 0), ('下午', 0), ('上午', 0), ('上午', 0), ('傍晚', 0), ('深夜', 0), ('早晨', 0), ('早晨', 0), ('上午', 1), ('上午', 0), ('下午', 1)]
+  zones(n=31): match L3=10  match L1=10
+     zone '黄金庭院公寓大厅' t='上午'  OK-L1
+     zone '便利店' t='上午'  OK-L1
+     zone '往世星海' t='上午'  OK-L1
+     zone '格蕾修的房间' t='午休'  MISMATCH
+     zone '画室门口' t='下午'  MISMATCH
+     zone '昔涟的房间' t='下午'  MISMATCH
+     zone '墨的公寓' t='早晨'  ONLY-L3
+     zone '墨的公寓楼下停车场' t='早晨'  ONLY-L3
+     zone '星海水族馆入口大厅' t='早晨'  ONLY-L3
+     zone '水族馆入口大厅' t='早晨'  ONLY-L3
+     zone '深海区' t='早晨'  ONLY-L3
+     zone '沉船隧道' t='早晨'  ONLY-L3
+     zone '商业街·美食街' t='上午'  OK-L1
+     zone '商业街美食街' t='上午'  OK-L1
+     zone '商业街街尾烂尾楼' t='午休'  MISMATCH
+     zone '商业街·服装店' t='午休'  MISMATCH
+     zone '商业街·精品鞋店' t='下午'  MISMATCH
+     zone '市场开拓部秘密据点' t='下午'  MISMATCH
+     zone '数据虚拟空间' t='早晨'  ONLY-L3
+     zone '黄金庭院大厅' t='上午'  OK-L1
+     zone '我们的房间' t='午休'  MISMATCH
+     zone '爱之乐园' t='早晨'  ONLY-L3
+     zone '鸽川区外围服装店' t='上午'  OK-L1
+     zone '鸽川区黑市后街暗道' t='上午'  OK-L1
+     zone '黑市后街西侧暗道' t='下午'  MISMATCH
+     zone '鸽川区街道' t='深夜'  MISMATCH
+     zone '你家' t='傍晚'  MISMATCH
+     zone '公司内部' t='上午'  OK-L1
+     zone '长夜月的家' t='早晨'  ONLY-L3
+     zone '公寓' t='早晨'  ONLY-L3
+     zone '花海公寓302室' t='上午'  OK-L1
+     player 942361330(墨) current_local_id='a8453da439ad9d80'
+     player 245432630(星) current_local_id='1a19172142eaaa26'
+
+default:GroupMessage:289584858
+  L1(active scene)='黎明'  L3(current_time_slice)='清晨'  max_slice='黎明'  L1==L3? False
+  scenes(n=15, active=1): [('清晨', 0), ('清晨', 0), ('清晨', 0), ('正午', 0), ('正午', 0), ('正午', 0), ('午后', 0), ('黄昏', 0), ('夜晚', 0), ('黎明', 0), ('黎明', 0), ('夜晚', 0), ('深夜', 0), ('黎明', 0), ('黎明', 1)]
+  zones(n=12): match L3=2  match L1=3
+     zone '往世星海 · 创世女神的神座前' t='清晨'  ONLY-L3
+     zone '神枢网络终端大厅' t='清晨'  ONLY-L3
+     zone '外部观景浮桥' t='正午'  MISMATCH
+     zone '甲板区' t='正午'  MISMATCH
+     zone '力天使维护层' t='正午'  MISMATCH
+     zone '炽天使节点舱' t='午后'  MISMATCH
+     zone '星在浮空方舟织世号的居所' t='夜晚'  MISMATCH
+     zone '武器训练室' t='黎明'  OK-L1
+     zone '主舰中枢' t='黎明'  OK-L1
+     zone '夜语学院·接待厅' t='夜晚'  MISMATCH
+     zone '夜语学院·贵宾休息室' t='深夜'  MISMATCH
+     zone '夜语学院·炼金术准备室' t='黎明'  OK-L1
+     player 245432630(星) current_local_id='446c95999bdd9519'
+
+default:GroupMessage:426750065
+  L1(active scene)='早晨'  L3(current_time_slice)='早晨'  max_slice=''  L1==L3? True
+  scenes(n=1, active=1): [('早晨', 1)]
+  zones(n=1): match L3=1  match L1=1
+     zone '黄金庭院公寓大厅' t='早晨'  OK-L1
+     player 1565369378({小桃子}) current_local_id='4c1f98b59e4baeab'
+
+default:GroupMessage:529384034
+  L1(active scene)='傍晚'  L3(current_time_slice)='早晨'  max_slice='傍晚'  L1==L3? False
+  scenes(n=8, active=1): [('早晨', 0), ('早晨', 0), ('早晨', 0), ('午休', 0), ('午休', 0), ('下午', 0), ('下午', 0), ('傍晚', 1)]
+  zones(n=6): match L3=3  match L1=0
+     zone '往世星海' t='早晨'  ONLY-L3
+     zone '恋语情侣酒店' t='早晨'  ONLY-L3
+     zone '街角西餐厅' t='午休'  MISMATCH
+     zone '黄金庭院海岸散步道' t='早晨'  ONLY-L3
+     zone '海风茶语' t='下午'  MISMATCH
+     zone '星的房间' t='下午'  MISMATCH
+     player 245432630(星) current_local_id='923e2c79007a4034'
+
+default:GroupMessage:674489689
+  L1(active scene)='早晨'  L3(current_time_slice)='早晨'  max_slice=''  L1==L3? True
+  scenes(n=4, active=1): [('早晨', 0), ('早晨', 0), ('早晨', 0), ('早晨', 1)]
+  zones(n=3): match L3=3  match L1=3
+     zone '黄金庭院公寓大厅' t='早晨'  OK-L1
+     zone '黄金庭院后院花园' t='早晨'  OK-L1
+     zone '六楼走廊' t='早晨'  OK-L1
+     player 942361330(墨) current_local_id='5d7e3f86d4d5743b'
+
+default:GroupMessage:702510574
+  L1(active scene)='上午'  L3(current_time_slice)='上午'  max_slice=''  L1==L3? True
+  scenes(n=7, active=1): [('上午', 0), ('上午', 0), ('上午', 0), ('上午', 0), ('上午', 0), ('上午', 0), ('上午', 1)]
+  zones(n=5): match L3=5  match L1=5
+     zone '休伯利安餐厅' t='上午'  OK-L1
+     zone '休伯利安医疗舱' t='上午'  OK-L1
+     zone 'B甲板舰长室' t='上午'  OK-L1
+     zone '休伯利安舰桥' t='上午'  OK-L1
+     zone '琪亚娜的房间' t='上午'  OK-L1
+     player 245432630(星) current_local_id='dbf6afdaa4bf3719'
+
+default:GroupMessage:814560566
+  L1(active scene)='上午'  L3(current_time_slice)='早晨'  max_slice='上午'  L1==L3? False
+  scenes(n=2, active=1): [('早晨', 0), ('上午', 1)]
+  zones(n=2): match L3=2  match L1=0
+     zone '黄金庭院公寓大厅' t='早晨'  ONLY-L3
+     zone '海滨步道' t='早晨'  ONLY-L3
+     player 245432630(星) current_local_id='63d42d1e5209845f'
+
+default:GroupMessage:877459692
+  L1(active scene)='傍晚'  L3(current_time_slice)='早晨'  max_slice='傍晚'  L1==L3? False
+  scenes(n=22, active=1): [('早晨', 0), ('早晨', 0), ('早晨', 0), ('上午', 0), ('上午', 0), ('上午', 0), ('上午', 0), ('上午', 0), ('午休', 0), ('下午', 0), ('下午', 0), ('深夜', 0), ('深夜', 0), ('深夜', 0), ('早晨', 0), ('早晨', 0), ('上午', 0), ('上午', 0), ('午休', 0), ('下午', 0), ('傍晚', 0), ('傍晚', 1)]
+  zones(n=15): match L3=4  match L1=1
+     zone '黄金庭院公寓大厅' t='早晨'  ONLY-L3
+     zone '帕朵的便利店' t='深夜'  MISMATCH
+     zone '中庭花园' t='早晨'  ONLY-L3
+     zone '生鲜超市' t='上午'  MISMATCH
+     zone '了餐厅' t='上午'  MISMATCH
+     zone '公寓' t='午休'  MISMATCH
+     zone '街心公园' t='下午'  MISMATCH
+     zone '帕朵的地下仓库' t='深夜'  MISMATCH
+     zone '商业街冷饮店' t='深夜'  MISMATCH
+     zone '商业街服装店' t='早晨'  ONLY-L3
+     zone '黄金庭院公共餐厅' t='早晨'  ONLY-L3
+     zone '电影院' t='上午'  MISMATCH
+     zone '学园城医务室' t='午休'  MISMATCH
+     zone '过我家' t='下午'  MISMATCH
+     zone '墨的房间' t='傍晚'  OK-L1
+     player 942361330(墨) current_local_id='4d7ea72f9edaaf3b'
+
+default:GroupMessage:909871205
+  L1(active scene)='傍晚'  L3(current_time_slice)='上午'  max_slice='傍晚'  L1==L3? False
+  scenes(n=7, active=1): [('上午', 0), ('傍晚', 0), ('傍晚', 0), ('清晨', 0), ('清晨', 0), ('上午', 0), ('傍晚', 1)]
+  zones(n=6): match L3=2  match L1=1
+     zone '镜界中枢·主控休整舱' t='上午'  ONLY-L3
+     zone '六分街录像店后巷' t='上午'  ONLY-L3
+     zone 'Random Play 录像店' t='傍晚'  OK-L1
+     zone '六分街·汀妙咖啡馆' t='清晨'  MISMATCH
+     zone '六分街·瀑布汤面' t='清晨'  MISMATCH
+     zone '更深处空洞裂隙' t='清晨'  MISMATCH
+     player 942361330(墨) current_local_id='ab1f012896c4117b'
+     player 245432630(星) current_local_id='ab1f012896c4117b'
+
+default:GroupMessage:955426627
+  L1(active scene)='早晨'  L3(current_time_slice)='早晨'  max_slice=''  L1==L3? True
+  scenes(n=5, active=1): [('早晨', 0), ('早晨', 0), ('早晨', 0), ('早晨', 0), ('早晨', 1)]
+  zones(n=4): match L3=4  match L1=4
+     zone '黄金庭院公寓大厅' t='早晨'  OK-L1
+     zone '小夏的公寓房间' t='早晨'  OK-L1
+     zone '梧桐路老公寓' t='早晨'  OK-L1
+     zone '希露瓦的公寓' t='早晨'  OK-L1
+     player 3038924475(小夏) current_local_id='329f6fe20da0a01f'
+
+default:GroupMessage:966162158
+  L1(active scene)='深夜'  L3(current_time_slice)='早晨'  max_slice='上午'  L1==L3? False
+  scenes(n=14, active=2): [('早晨', 0), ('上午', 0), ('上午', 0), ('午休', 0), ('傍晚', 0), ('午休', 0), ('深夜', 1), ('傍晚', 0), ('深夜', 0), ('早晨', 0), ('早晨', 0), ('深夜', 0), ('早晨', 0), ('早晨', 1)]
+  zones(n=11): match L3=4  match L1=3
+     zone '猫猫小铺' t='上午'  MISMATCH
+     zone '商业区商城顶层露台' t='早晨'  ONLY-L3
+     zone '商业区步行街' t='午休'  MISMATCH
+     zone '长夜月的公寓' t='深夜'  OK-L1
+     zone '步行街甜品店' t='傍晚'  MISMATCH
+     zone '电玩城' t='傍晚'  MISMATCH
+     zone '步行街特色烤肉店' t='深夜'  OK-L1
+     zone '步行街露天喷泉广场' t='早晨'  ONLY-L3
+     zone '黄金庭院公寓大厅' t='早晨'  ONLY-L3
+     zone '墨的房间' t='深夜'  OK-L1
+     zone '东街口早餐店' t='早晨'  ONLY-L3
+     player 245432630(技术支持——哈吉博) current_local_id='a23de7c7617c4175'
+     player 942361330(墨) current_local_id='e7e1ee04aa2c4a45'
+
+==============================================================================
+AGGREGATE (all zones, all sessions)
+  zones total = 209
+  L4 == L3 (current_time_slice) : 70/209 = 33.5%   <-- the '39%' metric
+  L4 == L1 (active-scene clock) : 56/209 = 26.8%   <-- corrected reference
+  sessions where L1 != L3       : 13/18 = 72.2%

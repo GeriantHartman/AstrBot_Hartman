@@ -2,7 +2,18 @@
   "permissions": {
     "allow": [
       "Bash(python C:/Users/Hartman/.claude/skills/rpg-ledger-audit/scripts/index_summary.py)",
-      "Bash(ls -lt E:/agentic-rpg/AstrBot/data/plugin_data/astrbot_plugin_agentic_rpg/llm_audit_index/*.jsonl)"
+      "Bash(ls -lt E:/agentic-rpg/AstrBot/data/plugin_data/astrbot_plugin_agentic_rpg/llm_audit_index/*.jsonl)",
+      "Bash(git *)",
+      "WebFetch(domain:discord.com)",
+      "WebFetch(domain:support-dev.discord.com)",
+      "WebFetch(domain:docs.discord.com)",
+      "WebSearch",
+      "WebFetch(domain:support.discord.com)",
+      "WebFetch(domain:telegram.org)",
+      "Bash(uv sync *)",
+      "Bash(uv run *)",
+      "Bash(cd *)",
+      "Bash(grep *)"
     ]
   }
 }

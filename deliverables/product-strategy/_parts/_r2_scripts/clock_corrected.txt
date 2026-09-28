@@ -1,0 +1,30 @@
+CORRECTED CLOCK METRIC — player's CURRENT zone vs CURRENT scene (L1) vs legacy L3
+==========================================================================================
+session                                uid        name           current zone           L4    L1    L3    L4==L1 L4==L3
+default:FriendMessage:2438094710       2438094710 【野火】new-elysium 原理工作室                  午休    午休    上午     Y     n
+default:FriendMessage:245432630        245432630  星              爱莉希雅的房间                早晨    早晨    早晨     Y     Y
+default:FriendMessage:942361330        942361330  墨              了房间                    早晨    上午    早晨     n     Y
+default:GroupMessage:1090658701        245432630  星              长空市西侧林区                上午    午后    上午     n     Y
+default:GroupMessage:1097436019        245432630  星              海瑟音的音乐工作室              上午    午休    深夜     n     n
+default:GroupMessage:1097436019        942361330  墨              艺术区·伊甸的私人画廊            早晨    上午    深夜     n     n
+default:GroupMessage:1098307480        245432630  星              奶茶店                    上午    午休    早晨     n     n
+default:GroupMessage:218606013         245432630  星              星的房间                   上午    上午    早晨     Y     n
+default:GroupMessage:218606013         942361330  a宝             天衡智库                   上午    上午    早晨     Y     n
+default:GroupMessage:230394566         942361330  墨              公司内部                   上午    上午    早晨     Y     n
+default:GroupMessage:230394566         245432630  星              花海公寓302室               上午    下午    早晨     n     n
+default:GroupMessage:289584858         245432630  星              夜语学院·炼金术准备室            黎明    黎明    清晨     Y     n
+default:GroupMessage:426750065         1565369378 {小桃子}          黄金庭院公寓大厅               早晨    早晨    早晨     Y     Y
+default:GroupMessage:529384034         245432630  星              星的房间                   下午    傍晚    早晨     n     n
+default:GroupMessage:674489689         942361330  墨              六楼走廊                   早晨    早晨    早晨     Y     Y
+default:GroupMessage:702510574         245432630  星              琪亚娜的房间                 上午    上午    上午     Y     Y
+default:GroupMessage:814560566         245432630  星              海滨步道                   早晨    上午    早晨     n     Y
+default:GroupMessage:877459692         942361330  墨              墨的房间                   傍晚    傍晚    早晨     Y     n
+default:GroupMessage:909871205         942361330  墨              更深处空洞裂隙                清晨    傍晚    上午     n     n
+default:GroupMessage:909871205         245432630  星              更深处空洞裂隙                清晨    傍晚    上午     n     n
+default:GroupMessage:955426627         3038924475 小夏             希露瓦的公寓                 早晨    早晨    早晨     Y     Y
+default:GroupMessage:966162158         245432630  技术支持——哈吉博      长夜月的公寓                 深夜    深夜    早晨     Y     n
+default:GroupMessage:966162158         942361330  墨              东街口早餐店                 早晨    早晨    早晨     Y     Y
+==========================================================================================
+player-observations n=23
+  L4==L1 (current zone == player scene clock) : 13/23 = 56.5%   <-- CORRECTED
+  L4==L3 (current zone == legacy current_time_slice): 9/23 = 39.1%

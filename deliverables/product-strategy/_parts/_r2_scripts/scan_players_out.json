@@ -1,0 +1,557 @@
+[
+ {
+  "file": "world_default_FriendMessage_2438094710.db",
+  "session_id": "default:FriendMessage:2438094710",
+  "gs_rows": [
+   {
+    "session_id": "default:FriendMessage:2438094710",
+    "interaction_count": 1062,
+    "game_active": 1,
+    "created_at": 1776001171
+   }
+  ],
+  "players": [
+   {
+    "user_id": "2438094710",
+    "name": "【野火】new-elysium",
+    "is_player": 1
+   }
+  ],
+  "episode_memories": 85,
+  "timeline_events": 85
+ },
+ {
+  "file": "world_default_FriendMessage_245432630.db",
+  "session_id": "default:FriendMessage:245432630",
+  "gs_rows": [
+   {
+    "session_id": "default:FriendMessage:245432630",
+    "interaction_count": 12,
+    "game_active": 1,
+    "created_at": 1781636703
+   }
+  ],
+  "players": [
+   {
+    "user_id": "245432630",
+    "name": "星",
+    "is_player": 1
+   }
+  ],
+  "episode_memories": 1,
+  "timeline_events": 1
+ },
+ {
+  "file": "world_default_FriendMessage_3353895062.db",
+  "session_id": "default:FriendMessage:3353895062",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_default_FriendMessage_942361330.db",
+  "session_id": "default:FriendMessage:942361330",
+  "gs_rows": [
+   {
+    "session_id": "default:FriendMessage:942361330",
+    "interaction_count": 512,
+    "game_active": 1,
+    "created_at": 1777753618
+   }
+  ],
+  "players": [
+   {
+    "user_id": "942361330",
+    "name": "墨",
+    "is_player": 1
+   }
+  ],
+  "episode_memories": 27,
+  "timeline_events": 27
+ },
+ {
+  "file": "world_default_GroupMessage_1027533701.db",
+  "session_id": "default:GroupMessage:1027533701",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_default_GroupMessage_1085526266.db",
+  "session_id": "default:GroupMessage:1085526266",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_default_GroupMessage_1085936067.db",
+  "session_id": "default:GroupMessage:1085936067",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_default_GroupMessage_1090658701.db",
+  "session_id": "default:GroupMessage:1090658701",
+  "gs_rows": [
+   {
+    "session_id": "default:GroupMessage:1090658701",
+    "interaction_count": 498,
+    "game_active": 1,
+    "created_at": 1779907857
+   }
+  ],
+  "players": [
+   {
+    "user_id": "245432630",
+    "name": "星",
+    "is_player": 1
+   }
+  ],
+  "episode_memories": 32,
+  "timeline_events": 32
+ },
+ {
+  "file": "world_default_GroupMessage_1094373115.db",
+  "session_id": "default:GroupMessage:1094373115",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_default_GroupMessage_1097436019.db",
+  "session_id": "default:GroupMessage:1097436019",
+  "gs_rows": [
+   {
+    "session_id": "default:GroupMessage:1097436019",
+    "interaction_count": 158,
+    "game_active": 1,
+    "created_at": 1775588276
+   }
+  ],
+  "players": [
+   {
+    "user_id": "245432630",
+    "name": "星",
+    "is_player": 1
+   },
+   {
+    "user_id": "942361330",
+    "name": "墨",
+    "is_player": 1
+   }
+  ],
+  "episode_memories": 28,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_default_GroupMessage_1098307480.db",
+  "session_id": "default:GroupMessage:1098307480",
+  "gs_rows": [
+   {
+    "session_id": "default:GroupMessage:1098307480",
+    "interaction_count": 47,
+    "game_active": 1,
+    "created_at": 1781897902
+   }
+  ],
+  "players": [
+   {
+    "user_id": "245432630",
+    "name": "星",
+    "is_player": 1
+   }
+  ],
+  "episode_memories": 3,
+  "timeline_events": 3
+ },
+ {
+  "file": "world_default_GroupMessage_150314261.db",
+  "session_id": "default:GroupMessage:150314261",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_default_GroupMessage_218606013.db",
+  "session_id": "default:GroupMessage:218606013",
+  "gs_rows": [
+   {
+    "session_id": "default:GroupMessage:218606013",
+    "interaction_count": 48,
+    "game_active": 1,
+    "created_at": 1782835160
+   }
+  ],
+  "players": [
+   {
+    "user_id": "245432630",
+    "name": "星",
+    "is_player": 1
+   },
+   {
+    "user_id": "942361330",
+    "name": "a宝",
+    "is_player": 1
+   }
+  ],
+  "episode_memories": 4,
+  "timeline_events": 4
+ },
+ {
+  "file": "world_default_GroupMessage_230394566.db",
+  "session_id": "default:GroupMessage:230394566",
+  "gs_rows": [
+   {
+    "session_id": "default:GroupMessage:230394566",
+    "interaction_count": 408,
+    "game_active": 1,
+    "created_at": 1776437486
+   }
+  ],
+  "players": [
+   {
+    "user_id": "942361330",
+    "name": "墨",
+    "is_player": 1
+   },
+   {
+    "user_id": "245432630",
+    "name": "星",
+    "is_player": 1
+   }
+  ],
+  "episode_memories": 37,
+  "timeline_events": 37
+ },
+ {
+  "file": "world_default_GroupMessage_289584858.db",
+  "session_id": "default:GroupMessage:289584858",
+  "gs_rows": [
+   {
+    "session_id": "default:GroupMessage:289584858",
+    "interaction_count": 291,
+    "game_active": 1,
+    "created_at": 1782099020
+   }
+  ],
+  "players": [
+   {
+    "user_id": "245432630",
+    "name": "星",
+    "is_player": 1
+   }
+  ],
+  "episode_memories": 24,
+  "timeline_events": 24
+ },
+ {
+  "file": "world_default_GroupMessage_426750065.db",
+  "session_id": "default:GroupMessage:426750065",
+  "gs_rows": [
+   {
+    "session_id": "default:GroupMessage:426750065",
+    "interaction_count": 2,
+    "game_active": 1,
+    "created_at": 1781597314
+   }
+  ],
+  "players": [
+   {
+    "user_id": "1565369378",
+    "name": "{小桃子}",
+    "is_player": 1
+   }
+  ],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_default_GroupMessage_431145952.db",
+  "session_id": "default:GroupMessage:431145952",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_default_GroupMessage_479409961.db",
+  "session_id": "default:GroupMessage:479409961",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_default_GroupMessage_529384034.db",
+  "session_id": "default:GroupMessage:529384034",
+  "gs_rows": [
+   {
+    "session_id": "default:GroupMessage:529384034",
+    "interaction_count": 134,
+    "game_active": 1,
+    "created_at": 1782796543
+   }
+  ],
+  "players": [
+   {
+    "user_id": "245432630",
+    "name": "星",
+    "is_player": 1
+   }
+  ],
+  "episode_memories": 12,
+  "timeline_events": 12
+ },
+ {
+  "file": "world_default_GroupMessage_556465264.db",
+  "session_id": "default:GroupMessage:556465264",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_default_GroupMessage_583491236.db",
+  "session_id": "default:GroupMessage:583491236",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_default_GroupMessage_625020608.db",
+  "session_id": "default:GroupMessage:625020608",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_default_GroupMessage_674489689.db",
+  "session_id": "default:GroupMessage:674489689",
+  "gs_rows": [
+   {
+    "session_id": "default:GroupMessage:674489689",
+    "interaction_count": 18,
+    "game_active": 1,
+    "created_at": 1777348247
+   }
+  ],
+  "players": [
+   {
+    "user_id": "942361330",
+    "name": "墨",
+    "is_player": 1
+   }
+  ],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_default_GroupMessage_702510574.db",
+  "session_id": "default:GroupMessage:702510574",
+  "gs_rows": [
+   {
+    "session_id": "default:GroupMessage:702510574",
+    "interaction_count": 62,
+    "game_active": 1,
+    "created_at": 1780167739
+   }
+  ],
+  "players": [
+   {
+    "user_id": "245432630",
+    "name": "星",
+    "is_player": 1
+   }
+  ],
+  "episode_memories": 2,
+  "timeline_events": 2
+ },
+ {
+  "file": "world_default_GroupMessage_735141445.db",
+  "session_id": "default:GroupMessage:735141445",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_default_GroupMessage_814560566.db",
+  "session_id": "default:GroupMessage:814560566",
+  "gs_rows": [
+   {
+    "session_id": "default:GroupMessage:814560566",
+    "interaction_count": 5,
+    "game_active": 1,
+    "created_at": 1781017219
+   }
+  ],
+  "players": [
+   {
+    "user_id": "245432630",
+    "name": "星",
+    "is_player": 1
+   }
+  ],
+  "episode_memories": 1,
+  "timeline_events": 1
+ },
+ {
+  "file": "world_default_GroupMessage_877459692.db",
+  "session_id": "default:GroupMessage:877459692",
+  "gs_rows": [
+   {
+    "session_id": "default:GroupMessage:877459692",
+    "interaction_count": 408,
+    "game_active": 1,
+    "created_at": 1779733520
+   }
+  ],
+  "players": [
+   {
+    "user_id": "942361330",
+    "name": "墨",
+    "is_player": 1
+   }
+  ],
+  "episode_memories": 8,
+  "timeline_events": 8
+ },
+ {
+  "file": "world_default_GroupMessage_909871205.db",
+  "session_id": "default:GroupMessage:909871205",
+  "gs_rows": [
+   {
+    "session_id": "default:GroupMessage:909871205",
+    "interaction_count": 53,
+    "game_active": 1,
+    "created_at": 1781490774
+   }
+  ],
+  "players": [
+   {
+    "user_id": "942361330",
+    "name": "墨",
+    "is_player": 1
+   },
+   {
+    "user_id": "245432630",
+    "name": "星",
+    "is_player": 1
+   }
+  ],
+  "episode_memories": 9,
+  "timeline_events": 9
+ },
+ {
+  "file": "world_default_GroupMessage_955426627.db",
+  "session_id": "default:GroupMessage:955426627",
+  "gs_rows": [
+   {
+    "session_id": "default:GroupMessage:955426627",
+    "interaction_count": 14,
+    "game_active": 1,
+    "created_at": 1781606709
+   }
+  ],
+  "players": [
+   {
+    "user_id": "3038924475",
+    "name": "小夏",
+    "is_player": 1
+   }
+  ],
+  "episode_memories": 4,
+  "timeline_events": 4
+ },
+ {
+  "file": "world_default_GroupMessage_965913031.db",
+  "session_id": "default:GroupMessage:965913031",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_default_GroupMessage_966162158.db",
+  "session_id": "default:GroupMessage:966162158",
+  "gs_rows": [
+   {
+    "session_id": "default:GroupMessage:966162158",
+    "interaction_count": 199,
+    "game_active": 1,
+    "created_at": 1781717641
+   }
+  ],
+  "players": [
+   {
+    "user_id": "245432630",
+    "name": "技术支持——哈吉博",
+    "is_player": 1
+   },
+   {
+    "user_id": "942361330",
+    "name": "墨",
+    "is_player": 1
+   }
+  ],
+  "episode_memories": 18,
+  "timeline_events": 18
+ },
+ {
+  "file": "world_webchat_FriendMessage_webchat_Hartman_2256b314-2a2b-46d3-88ee-5357d703615b.db",
+  "session_id": "webchat:FriendMessage:webchat_Hartman_2256b314-2a2b-46d3-88ee-5357d703615b",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_webchat_FriendMessage_webchat_Hartman_2aee0c6d-28f8-4bfe-8bfc-a42a6a884aca.db",
+  "session_id": "webchat:FriendMessage:webchat_Hartman_2aee0c6d-28f8-4bfe-8bfc-a42a6a884aca",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_webchat_FriendMessage_webchat_Hartman_6a44a9e9-0d1b-4853-9169-6ba249b232e3.db",
+  "session_id": "webchat:FriendMessage:webchat_Hartman_6a44a9e9-0d1b-4853-9169-6ba249b232e3",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_webchat_FriendMessage_webchat_Hartman_cebf8aa0-6ebf-432b-91be-111ee301d0e6.db",
+  "session_id": "webchat:FriendMessage:webchat_Hartman_cebf8aa0-6ebf-432b-91be-111ee301d0e6",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_狼人杀_FriendMessage_245432630.db",
+  "session_id": "狼人杀:FriendMessage:245432630",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ },
+ {
+  "file": "world_狼人杀_GroupMessage_1027533701.db",
+  "session_id": "狼人杀:GroupMessage:1027533701",
+  "gs_rows": [],
+  "players": [],
+  "episode_memories": 0,
+  "timeline_events": 0
+ }
+]

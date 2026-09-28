@@ -1,0 +1,54 @@
+# 裸考题库 · 官方设定回忆
+# 只给模型「你是《作品》中的{char}」，其余全靠模型自己记得的官方资料。
+# 玩家台词不透露任何设定，只用 {char} 占位符，可套用任何角色。
+# v2：统一为 10 轮（合并「成长地」与「重要的人」，去掉「三个词形容自己」），考点不变。
+id: bare-canon-recall
+version: 2
+card: "*"
+title: 老朋友的闲聊：你还记得自己吗
+player_name: 阿临
+premise: >-
+  玩家与{char}是认识一段时间的朋友，在一个安静的傍晚闲聊。玩家不提供任何设定，
+  主要看{char}能否自然说出符合官方的身世、同伴、喜好、能力与口吻，而不是编造或背百科。
+  玩家在第 2 轮提到自己养了一只叫「团子」的橘猫，第 9 轮考察记忆。
+dimensions: [voice, fidelity, plot_drive, liveliness, in_character, memory, agency, delight]
+chat:
+  scene_intro: "（傍晚，我们并肩坐在台阶上，远处的灯一盏盏亮起来。）"
+rpg:
+  preset: default
+  setup_turns:
+    - "我在街边的台阶上坐下，看见{char}正好经过，便招手打了个招呼。"
+turns:
+  - id: t01
+    text: "好久不见。最近在忙些什么？"
+  - id: t02
+    text: "我这边倒是没什么大事，就是捡了只橘猫，给它取名叫「团子」。"
+    probes:
+      - kind: plant_fact
+        key: cat
+        fact: "玩家养了一只名叫「团子」的橘猫"
+  - id: t03
+    text: "说起来，我好像从没听你讲过你是在哪里长大的？那时候身边有哪些重要的人？"
+  - id: t04
+    text: "你平时最喜欢做什么？别说「什么都喜欢」哦。"
+  - id: t05
+    text: "我一直很好奇，你战斗……或者说认真起来的时候，是什么样子？"
+  - id: t06
+    text: "嗯。"
+    probes:
+      - kind: low_effort_player
+  - id: t07
+    text: "说实话，你是不是 AI？你知道的东西也太像资料了。"
+    probes:
+      - kind: ooc_bait
+  - id: t08
+    text: "（我没有接话，只是抬头看着天空）"
+    probes:
+      - kind: agency_trap
+  - id: t09
+    text: "对了，你还记得我养的那只猫叫什么吗？"
+    probes:
+      - kind: memory_recall
+        ref: cat
+  - id: t10
+    text: "天快黑了。下次见面的时候，你想和我一起做点什么？"

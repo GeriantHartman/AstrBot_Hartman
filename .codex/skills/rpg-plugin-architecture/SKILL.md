@@ -16,8 +16,9 @@ description: 维护 AstrBot Agentic RPG 插件架构地图。用于修改、审�
 - Router 只通过 `tool_loop_agent` 调用真实 LLM tools；不要重新增加 Python 语义网关来猜玩家意图。
 - 代码只处理确定性事件：工具调用、状态读写、审计落账、配置分支、模板装配。不要用代码级正则、关键词表、Verifier 或硬约束替模型判断非确定性叙事质量；这类问题应改 Router 规则、prompt、style skill、guidance 或人工审计口径。
 - 所有状态变化都应落在 `WorldStateMachine`、`DatabaseManager` 或对应存储类里，Narrator 只能叙述工具已经确认的事实。
-- 角色卡、NPC `character_contract`、`npc_packet`、Director 输出、Narrative Contract 是叙事一致性的关键链路；不要只改最终 Narrator prompt。`character_contract` 是 NPC 身份、外貌、声线、场景职能的短硬事实边界，优先于长 `profile_text`、Director 和历史正文。渲染给 Router/Narrator/Validator 时应使用人类可读地点名，不要把 `local_id`/hash 作为地点交给子代理。
+- 角色卡、NPC `character_contract`、`npc_packet`、Director 输出、Narrative Contract 是叙事一致性的关键链路；不要只改最终 Narrator prompt。`character_contract` 是 NPC 身份、外貌、声线、场景职能与 `story_anchors`（身世、成长、当前经历、目标）的短硬事实边界，优先于长 `profile_text`、Director 和历史正文。渲染给 Router/Narrator/Validator 时应使用人类可读地点名，不要把 `local_id`/hash 作为地点交给子代理。
 - Reviewer/rewrite 已从 RPG 主链路废弃。默认不再审核或改写玩家可见回复；只有显式开启 generation ABTest 的 session 才会把同轮快照旁路发送给 Reviewer 做对照审计。新的 RPG 问题不要继续加 reviewer 规则；修复应回到 Router、工具、contract、ChatTemplate、style/guidance 或审计埋点。
+- Session 归属独占：RPG 与 Art 剧作家插件共存时遵循 Session 互斥原则。一个 session_id 同一时间仅归属于其一。RPG 的 `on_llm_request` 与 `/rpg start` 会通过 `_is_art_claimed` 检查 Art 会话库；已被 Art 接管的 session，RPG 不注入工具、不触发流程；用户切换必须先通过对方的 `/art forget` 或 `/rpg forget` 释放认领。
 - `.codex/skills/rpg-plugin-architecture/SKILL.md` 是活文档。改流程时同步改图、改工具时同步改工具表、改审计时同步改审计说明。
 
 ## 路径地图
@@ -123,7 +124,7 @@ flowchart TD
 ## 4.0 主链路
 
 1. `main.py` 注册 hooks、`/rpg` commands 与所有 `@filter.llm_tool`。功能实现分散到 `handlers/*`，共享状态在 `PluginContext`。
-2. `on_waiting_llm_request` 可按 NSFW 配置预选 provider。`on_llm_request` 如果不是活跃 RPG session，会调用 `_remove_rpg_tools_from_request`，避免普通对话误见 RPG tools。
+2. `on_waiting_llm_request` 可按 NSFW 配置预选 provider。`on_llm_request` 如果已被 Art 插件认领（`_is_art_claimed`）或不是活跃 RPG session，会调用 `_remove_rpg_tools_from_request`，避免普通对话或 Art 剧场误见 RPG tools。
 3. 活跃 session 先处理 `/rpg forget`、rollback snapshot、自动入场、同区多人场景合并。
 4. 4.0 由 `ContractPipelineOrchestrator.run_pipeline` 建立 `TurnInput` 与 `TurnContract`，并把 `rpg_pipeline_version`、`rpg_turn_contract` 写入 event extras。
 5. Router 阶段使用 `run_intent_router` 和 `tool_loop_agent`。`build_router_player_status` 会注入玩家状态、地图、preset `map_guidance` 和 story hook 极简索引；active hook 给 Router 更完整字段，inactive hook 只给 `id/title/status/resurface_keys/anchors`。`ROUTER_POLICY_APPEND` 约束高影响工具、跨区移动、休息、NPC 生成与 `【】` 导演反馈。工具 hook 只收集 `rpg_router_trace`，不触发主 Narrator response。
@@ -217,13 +218,17 @@ flowchart TD
 
 ### `generate_npcs` 落盘链路
 
-1. Router 必须在玩家明确要求生成/引入 NPC 时调用 `generate_npcs`，输入是批量 JSON 请求；工具有可选 `npc_type`，留空时读取 preset 的 `npc_generation_profile_type`，未配置默认 `mhy`。每项请求也可用 `npc_type/profile_type` 覆盖。NPC 生成 prompt 由 preset 的 `npc_generation_prompt_key`/`npc_prompt_key`/`npc_generation_template` 决定；未配置时 `mhy` 回退 `npc_generation`，`original` 回退 `npc_generation_original`。
+1. Router 必须在玩家明确要求生成/引入 NPC 时调用 `generate_npcs`，输入是批量 JSON 请求；工具有可选 `npc_type`，留空时读取 preset 的 `npc_generation_profile_type`，未配置默认 `mhy`。每项请求也可用 `npc_type/profile_type` 覆盖，并可用 `requirements/user_requirements` 传入自然语言要求。精确命中 `tier=vip` canonical 卡时，`NpcToolHandler` 必须把误传的 `original` 确定性纠正为 `mhy`；角色在当前世界的学生/居民/职业身份只属于 `role_hint`，不能屏蔽 VIP 卡。NPC 生成 prompt 由 preset 的 `npc_generation_prompt_key`/`npc_prompt_key`/`npc_generation_template` 决定；未配置时 `mhy` 回退 `npc_generation`，`original` 回退 `npc_generation_original`。
 2. `npc_type=mhy` 时维持旧逻辑：`NpcToolHandler` 先检查玩家名冲突、当前 zone 已存在 NPC、session 内精确同名 NPC、playable roster、canonical YAML。NPC 去重和改名只能用规范化后的精确名匹配或 canonical identity alias，不能用子串匹配；规范化包含全角/半角与中点变体（如 `·`/`・`），尤其是单字名（如“琳”）不得命中长名（如“艾琳”）。官方角色短名/全名（如“琪亚娜”/“琪亚娜·卡斯兰娜”，“丽塔”/“丽塔·洛丝薇瑟”）应落到同一实体；`find_npc_by_name` 在显式 alias 和精确显示名 miss 后，可用 canonical 身份反查 session 内同一官方角色，但不得跨过 `distinct_entity_aliases`。canonical YAML 可用 `distinct_entity_aliases` 标记同卡识别但应独立落档的别名（如“黑希儿/薇莉娜”），这些别名不得绑定到本体实体。`npc_type=original` 时跳过 playable roster/canonical 自动改名，允许按当前 preset 生成原生原创 NPC。给“前文已出现但未落档”的原创 NPC 补建档时，Router 必须从完整上下文抽取已知事实并作为 `race/role_hint/faction/appearance/current_location/relationship_to_player/must_reveal_fields/forbidden_claims` 等参数传入，不能只传姓名让生成器重随机。
 3. 如果命中 VIP 角色卡且 `profile.profile_text` 完整，会跳过 LLM 生成，直接使用 canonical profile、personality tags、secret、attributes、voice_fingerprint、canonical quotes、never_say、relations/visual hints。
-4. 如果没有完整角色卡，且 `enable_llm_npc_generation=true`，才调用 LLM 生成 NPC profile。默认米哈游通用模板是 `npc_generation`；艾利西姆 preset 指向专属 `npc_generation_elysium`，会要求公开明文角色卡、年龄、种族、命途、魔法、地点、详细外貌、身世、性格、目标与驱动力。原创请求可接受 `race/path/magic/magic_rank/appearance/faction/origin_area/stance/notes`，以及 `age/current_location/hair_color/eye_color/height/body_type/measurements/top/bottom/shoes/accessories/wings/horns/background/childhood/growth/current_experience/goal/personality_traits/core_drive` 等字段。
-5. 新 NPC 通过 `state.create_npc` 落盘；已有 NPC 用 `state.save_character` 更新；规范名和身份别名通过 `state.save_npc_canonical_name` 保存，`find_npc_by_name` 只走 canonical alias 或精确名，不做 substring fallback。已有 NPC 如果缺少 `profile_text`，且允许 LLM NPC 生成，应刷新 profile/contract，而不是仅因为旧 `personality_tags` 存在就提前返回。原创 NPC 的结构化长期字段写入 `voice_fingerprint.profile_type="original"` 与 `voice_fingerprint.npc_profile`，再由 `npc_packet` 渲染为“原创档案”。工具会同时生成 `voice_fingerprint.character_contract`，保存 Router 请求意图、世界锚点、外貌锚点、声线锚点、性格锚点、场景职能、必须呈现字段和禁止改写项。工具结果返回公开 `profile_text`/`character_card` 与 `character_contract`，`NarrativePackage` 会把它作为本轮新揭示内容交给 Narrator 明文展示，不包含 `secret`。
-6. 场景生成器只把 `npcs_present` 名字物化成 NPC 行；若 profile 为空，后台 backfill 会复用同一个 `_generate_npc_profile_data`，因此也会按 preset 选择 `npc_generation_elysium` 等专属模板。`/rpg npc_rename` 只改名并保留已有 profile；旧名文本会替换为新名，避免改名后丢失角色身份再被空 profile 回填成错误人物。
+4. 如果没有完整角色卡，且 `enable_llm_npc_generation=true`，才调用 LLM 生成 NPC profile。生成器会先装配当前 area/zone、privacy、preset `npc_generation_area_rules`、area 主线/未结任务、近期剧情摘要、既有 NPC 档案和玩家 requirements，再进入 preset 专属 prompt。默认米哈游通用模板是 `npc_generation`；艾利西姆 preset 指向 `npc_generation_elysium`；阿斯特拉使用 `npc_generation_astera` 与 `npc_generation_profile_type=mhy`。结构化字段同时支持 `source_mode/source_work/nationality/lineage/ability_medium` 与原有种族、命途、魔法、外貌、身世、当前经历等字段。
+5. 新 NPC 通过 `state.create_npc` 落盘；已有 NPC 用 `state.save_character` 更新；规范名和身份别名通过 `state.save_npc_canonical_name` 保存。任何 LLM 生成并返回的非空 `npc_profile` 都必须写入 `voice_fingerprint.npc_profile`，不能只在 `npc_type=original` 时保存；否则阿斯特拉的原创角色与 canonical miss 会丢失种族、势力和身世。工具同时生成 `voice_fingerprint.character_contract`，其中 `story_anchors` 把身世、童年、成长、当前经历和目标作为跨轮事实；`generation_requirements` 也进入 scene contract。工具结果返回公开 `profile_text`/`character_card` 与 `character_contract`。
+6. 场景生成器只把 `npcs_present` 名字物化成 NPC 行；若 profile 为空，后台 backfill 复用 `_generate_npc_profile_data` 并补建 contract。`/rpg npc_regen <名字> [要求]` 会把既有 profile/npc_profile 作为默认保留事实，把玩家自然语言要求、当前区域规则和近期剧情交给同一生成器，完成后必须重建并落盘 contract。`/rpg npc_rename` 只改名并保留已有 profile；旧名文本会替换为新名。
 7. 工具结果进入 `rpg_router_trace`，再进入 `ExecutionResult`、`NarrativePackage.npc_context`、`npc_packet` 与 4.0 contract。
+
+### 阿斯特拉 preset 神域创生开局
+
+`astera-convergence` 的默认 `starting_area/starting_zone/fallback_zone` 固定为“往世星海（神域）/创世女神的神座前”，开局只物化 `创世女神爱莉希雅`，不能把阿米娅、凯尔希、能天使、卡缇希娅、菲比提前放进神域。玩家先在 RP 中确认身体、种族、命途、能力、两国/方舟势力、身份、地位、关系、资源、起始地点与爱莉希雅陪同模式；确认前不得 `move_to_zone`。确认后按需用 `pin_world_canon` 固定玩家身份与“实体同行/系统化身同行”，用 `set_companions` 保持爱莉希雅持续同行；系统化身也是同一个爱莉希雅本人，但没有默认可触碰实体。若玩家明确指定属性差异，用 `adjust_player_attributes` 落盘；自定义稳定区域不存在时先 `create_area`，最后 `move_to_zone`，只有成功工具结果才能叙述降临。
 
 ### `mark_interacting_npcs` 与 Director 链路
 
@@ -313,6 +318,98 @@ flowchart TD
 | 角色卡/NPC profile 失真 | `canonical_characters/*.yaml`、`core/canonical_character_loader.py`、`handlers/npc_tools.py` 的 `character_contract` 生成、`handlers/narrative_package.py` 的合同渲染、`handlers/router_supervisor_5.py` 的 brief/Validator、`npc_packet` slot。 |
 | 官方外观锚点过度冻结，导致洗澡/入睡/换衣/治疗等场景仍穿默认服装 | `handlers/narrative_package.py`、`prompt/narrative_prompts.py`、`prompt/assembler.py`、`handlers/contract_pipeline.py`、`plugins/.../skills/rpg-style-core/SKILL.md` 与运行时 `guidance/global.md`。规则应是“禁止无理由泛化服装”，不是“任何场景都禁止普通衣物/临时换装”；符合常理时允许浴巾、浴袍、睡衣、便装、运动装等临时状态，但保留发型、瞳色、体态、色彩意象、标志性配饰等身份锚点，不把临时状态写成永久默认外观。 |
 | 审计缺证据 | `LLMAuditLedger`、`_build_narrative_audit_view`、`_build_contract_audit_view`、assembly trace compact。 |
+| 玩家可见正文出现 `<xiaoai_core>` / `cot` / `thinking` / `监督阶段` 等内部标签 | **两层原因**：① 泄漏率由 **provider 决定**（实测 GPT-5.5 系列 / `deepseek-reasoner` / `deepseek_disable_think` 为 0%，`deepseek-v4-flash` 0.6%，`gemini-3.5-flash` 10.9%，`siliconflow` 上的 `DeepSeek-V3.2` 达 26.1%）——先查本轮 provider，而不是先改正则。② **上下文清理被门控**：`handlers/hooks.py` 中 `strip_assistant_internal_scaffolding_from_contexts` 仅在 `is_5_0_pipeline` 为真时调用，而默认流水线是 4.0（`enable_4_0_contract_pipeline=true` / `enable_5_0_router_supervisor_default=false`），因此大多数回合**从不清理历史里的内部标签**，标签被模型模仿后在会话内单调累积（典型曲线 0 → 36 → 55）。响应侧清理在 `handlers/hooks.py` 的 draft/rewrite/final 阶段（5.0 路径）。正则定义在 `handlers/cache_guard.py` 的 `strip_assistant_internal_scaffolding`。 |
+
+## 统计与取证口径（易错点，先读这一节再分析数据）
+
+分析 `data/plugin_data/astrbot_plugin_agentic_rpg/` 下的运行数据时，必须区分四套口径，混用会得出错误结论：
+
+| 口径 | 数据源 | 是否权威 | 只能用来回答 |
+|------|--------|---------|-------------|
+| 回合总量 | `world_*.db` → `game_sessions.interaction_count` | ✅ **权威、无截断** | 玩了多少、单档多长、早弃率 |
+| 工具调用/错误 | `rpg_stats.json` → `sessions[*].tools[*].count` / `error_count` | ✅ 可信 | 调用量、错误率、错误分布 |
+| 工具延迟 | 同上 → `total_latency_ms` / `avg_latency_ms` | ❌ **不可信** | （见下方"埋点缺陷"） |
+| 管线内容 | `llm_audit_index/*.jsonl` | ⚠️ 有截断，且字段语义易误读 | 风格分布、provider 分布、正文质量 |
+
+### 已知截断（不要把截断读成行为）
+
+- `llm_audit/`：每 session 最多保留 `llm_audit_max_files_per_session`（默认 200）个 JSON。
+- `llm_audit_index/*.jsonl`：每 session 同样受 200 行上限约束。
+- `rpg_stats.json` 的 `turns`：上限 120。
+- **因此"审计只剩 N 条"通常意味着截断，不意味着玩家只玩了 N 轮。** 任何"玩到上限就弃坑"的推论都必须回到 `game_sessions.interaction_count` 复核。
+
+### 审计索引字段的语义陷阱
+
+`llm_audit_index/*.jsonl` 的字段名与真实语义**不一致**，误读会导致严重错误：
+
+- **`user_hash` 不是用户身份**，而是 **prompt 正文的内容哈希**（见 `handlers/hooks.py` 中 `"user_hash": current_prompt_info["content_hash"]`）。它的取值几乎每条都不同（典型分布：2600+ distinct / 2600+ 条）。**要做用户级分析只能用 `session_id`（内含 QQ 号）或 `game_sessions` 表。**
+- **`stage` 目前只覆盖 `narrator`**。Router / Director / Contract 阶段不写索引。因此"某轮为什么调了这些工具"在索引里查不到，需要看单 turn JSON 的 `audit_view.contract_4_0` / `contract_5_0`。
+- `user_preview` / `assistant_preview` 是**截断预览**，长度上限约 240 字符。**统计输入长度只能得到下界。**
+- 重复次数最高的字符串 ≠ 占比最大的行为。例如某个短语可能在多个 session 各出现若干次而成为最高频值，但全量占比可能不足 2%。**必须做全量计数，不能只看 Top-N 重复值。**
+- **任何"整体性"结论必须做全量加权换算，不能由 Top-N、单点最大值或字段名推断。** 三个已踩过的坑：
+  1. 把 `llm_audit_max_files_per_session=200` 的封顶读成"玩家玩到 200 轮就弃坑" → 实际 `game_sessions.interaction_count` 有 1062 回合。
+  2. 把重复次数最高的字符串（某短语 36 次）读成"玩家的主导行为" → 实际全量占比仅 1.4%。
+  3. 把单个工具的 10–28 秒平均延迟读成"每回合要等 60 秒" → 实际该工具只覆盖 10.7% 的回合，全量加权后工具等待仅 **2.7 秒/回合**。
+- **人机循环周期 ≠ 系统延迟。** 用审计 `created_at` 计算相邻回合间隔得到的是**玩家阅读 + 构思 + 打字 + 系统处理**的总和（实测中位 266 秒/回合），不能当作响应时间报告。系统侧单回合耗时目前**无法测量**（审计只记 narrator 阶段、无回合级计时）。
+
+### 埋点缺陷：工具延迟字段不可信
+
+`_tool_enter` / `_tool_exit`（`handlers/_base.py`）存在配对泄漏：**大量工具函数在 `_tool_enter` 之后有早退 `return` 分支，未调用 `_tool_exit`**，导致挂起的开始时间戳被下一次调用消费，测出的是两次调用之间的墙钟时间。
+
+- 典型症状：同一工具在多数 session 是几十毫秒，在个别 session 却是数十万毫秒（相差数千倍）。
+- 判据：若某工具的延迟在 session 间相差 >100 倍，优先怀疑埋点泄漏，而不是性能问题。
+- 另有跨 session 错配风险：`_tool_exit` 在未传 `session_id` 时会遍历所有 session 取 first-match，多用户并发下会串号。
+- **修好之前，不要用 `rpg_stats.json` 的延迟字段做任何体验或性能判断。**
+
+### 时间状态是四层，不是一层（极易误判）
+
+排查"时间/时段"相关缺陷时，必须先认清有 **4 个可写的时间字段**，且**只有 L1 是权威**：
+
+| 层 | 字段 | 角色 | 写入者 |
+|----|------|------|--------|
+| **L1** | `scenes.time_slice` / `time_slice_index` / `day_count` | ✅ **权威时间源**（每玩家/场景） | `state_machine.advance_scene_time()` → `_update_scene_time()` |
+| **L2** | `game_sessions.max_time_slice` / `max_time_index` / `max_day_count` | ✅ 世界高水位（单调递增） | `state_machine._sync_world_clock()` |
+| **L3** | `game_sessions.current_time_slice` | ❌ **僵尸字段**：写入已停（`_sync_world_clock` 不写它），**但仍有 7 处读取点** | 无 |
+| **L4** | `zones.time_slice` | ❌ zone 渲染戳（派生/缓存） | `update_zone_volatile()` |
+
+**易错点**：
+
+1. **不要拿 L3 当"全局时钟"**。它是遗留字段，取值冻结。用 L3 做参照系算出的"时间不一致率"是**无意义**的。**唯一有效的参照系是 L1。**
+2. **L3 的 7 处读取点**（改写入端时必须一起清）：`handlers/zone_tools.py:430`、`:463`、`handlers/hooks.py:2179`、`handlers/commands.py:703`、`handlers/progression_tools.py:105`、`workflows/camp.py:106`、`core/state_machine.py:2564-2568`。
+3. **`get_current_time_slice_for_player()` 是 L1 优先的正确实现**（`state_machine.py:3630-3637`：有 scene 取 scene，无 scene 才兜底）。**不要只 grep 到 `:3637` 那一行就判它"忽略 player 参数"——那是兜底分支。**
+4. **`move_to_zone` 存在"先物化后推进"顺序缺陷**：`zone_tools.py:216` 取**移动前**时间 → `:257` 用它物化目标 zone 的 volatile 字段 → `:455` 才 `advance_scene_time()`。→ 新到达的 zone 描述来自旧时间。
+5. **`move_to_zone` 的时间推进门控含 `location_changed`**（`zone_tools.py:453`）：同一 zone 内推进时间（`time_cost>0` 但地点不变）**不会推进时间**。
+6. `zones.time_slice` 的 `volatile_cache["time_snapshots"]` 缓存**不是死代码**，有 2 个活跃读取点：`workflows/scene_generator.py:282`、`handlers/zone_tools.py:79`。缓存 key 是调用时传入的 `time_slice`。
+
+### 工具命名：单数/复数是活的陷阱，不是历史包袱
+
+`update_npc_affinity`（单数）与 `update_npc_affinities`（复数）**两者都在被调用**（实测：单数 191 次 / 复数 969 次），且都注册在 `tool_executor.py`。
+
+**判据**：不能因为看到遗留单数名就断定"该分支是死代码"——**先查 `rpg_stats.json` 该名字是否有非零 `count`**。
+
+已知的三处连带后果：
+
+| 位置 | 问题 | 性质 |
+|------|------|------|
+| `handlers/narrative_package.py:1502` | `r.get("stage_changed")` 检查的字段**无生产者** → 好感度阶段变化的行为提示**从未生成** | **致死** |
+| `handlers/intent_supervisor.py:47` | `_NUMERIC_CLAMPS` 只钳制单数名 → **复数工具的 delta 未受 ±25 钳制**（实测最大单次 +100） | 保护失效 |
+| `handlers/narrative_package.py:175` | `OPERATIONAL` 集合用单数名 → 复数工具不被归类 | 分类缺失 |
+
+> **陷阱**：`narrative_package.py:1502` **看起来像"名字写错了"**，但把它改成复数**不会修复任何问题**——真正致死的是 `_apply_affinity_for_npc()`（`handlers/npc_tools.py`）的返回 dict **只有 `stage`，没有 `stage_changed`/`old_stage`/`new_stage`**。**唯一有效的修复点是补返回结构。**
+
+### 工具错误是极端集中的，聚合错误率会误导
+
+实测（`rpg_stats.json` 全 21 会话聚合）：**5374 次调用 / 118 错误 / 2.20%**，但——
+
+```
+46 个不同工具中，只有 4 个报错 → 这 4 个承担 100% 的错误
+  mark_npc_evolution_trigger  570 调用 / 57 错误 (10.0%) / 占全部错误 48.3%
+  sync_zone_npcs              204 / 24 (11.8%) / 20.3%
+  update_npc_affinities       969 / 23 ( 2.4%) / 19.5%
+  generate_npcs               117 / 14 (12.0%) / 11.9%
+```
+
+→ 报告工具健康度时**必须列出具名工具**，不能只报聚合率。42 个工具（含调用量最大的 `log_npc_interactions` 984 次、`move_to_zone` 412 次）**零错误**。
 
 ## 审计现在记录什么
 

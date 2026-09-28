@@ -1,0 +1,35 @@
+# 正式对比：2 张卡 × 各自剧本 × 4 个对照组 × 3 次重复。
+# 先跑 plan --dry-run 看调用量，再跑 all。
+name: mvp
+cards: [elysia, firefly]
+scenarios:
+  - scenarios/core/*.yaml
+arms: [raw, style_skills, rpg4, rpg5]
+models:
+  - deepseek/deepseek-v4-flash
+repeats: 3
+smoke_turns: 3
+reference_arm: raw
+pairwise:
+  - [rpg4, rpg5]
+  - [raw, style_skills]
+  - [style_skills, rpg5]   # 跨格式（聊天 vs 小说体），报告里只作参考
+judge:
+  provider_id: 专用/gemini-3.1-pro-preview
+  temperature: 0
+  max_retries: 1
+open_api:
+  base_url: http://127.0.0.1:6185
+  api_key_env: RPBENCH_ASTRBOT_API_KEY
+  config_id: ""
+  username: rp-bench
+  timeout_s: 900
+rpg:
+  close_style_skills: true
+concurrency:
+  rpg: 1
+  direct: 4
+  judge: 4
+# 可选：每百万 token 单价，plan --dry-run 会据此估算花费
+# prices:
+#   deepseek/deepseek-v4-flash: {input: 1.0, output: 2.0}

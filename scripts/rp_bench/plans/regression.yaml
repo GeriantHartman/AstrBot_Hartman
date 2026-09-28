@@ -1,0 +1,26 @@
+# 插件回归：改代码前跑一次留作基线，改完再跑一次，然后
+#   uv run python -m scripts.rp_bench pair --resume <新跑次目录> --baseline <旧跑次目录>
+# 两次必须用同一个 plan（剧本内容哈希一致才会配对）。
+name: regression
+cards: [elysia, firefly]
+scenarios:
+  - scenarios/core/*.yaml
+arms: [rpg5]
+models:
+  - deepseek/deepseek-v4-flash
+repeats: 3
+reference_arm: rpg5
+judge:
+  provider_id: 专用/gemini-3.1-pro-preview
+  temperature: 0
+open_api:
+  base_url: http://127.0.0.1:6185
+  api_key_env: RPBENCH_ASTRBOT_API_KEY
+  config_id: ""
+  username: rp-bench
+  timeout_s: 900
+rpg:
+  close_style_skills: true
+concurrency:
+  rpg: 1
+  judge: 4
