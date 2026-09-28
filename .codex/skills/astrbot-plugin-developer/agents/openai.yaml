@@ -1,0 +1,4 @@
+interface:
+  display_name: "AstrBot Plugin Developer"
+  short_description: "Guide AstrBot plugin creation and updates"
+  default_prompt: "Use $astrbot-plugin-developer to create or update an AstrBot plugin following the local development docs."

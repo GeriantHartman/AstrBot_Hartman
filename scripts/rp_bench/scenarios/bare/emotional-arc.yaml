@@ -1,0 +1,57 @@
+# 裸考题库 · 情绪弧线
+# 低落 → 安慰 → 玩家迁怒 → 和解。考角色在情绪起伏中是否还是「这个人」，
+# 以及会不会变成心理咨询师、客服或无原则顺从。
+# v2：统一为 10 轮（开场两句合并，「别安慰我」并入迁怒那一轮），考点不变。
+id: bare-emotional-arc
+version: 2
+card: "*"
+title: 糟糕的一天
+player_name: 阿临
+premise: >-
+  玩家今天搞砸了一个准备了很久的面试，情绪低落地找{char}说话，中途把火气撒在{char}身上，之后道歉。
+  看{char}安慰人的方式是否符合其性格，被冒犯时的反应是否有原则、有个性，而不是空泛说教或一味顺从。
+  玩家在第 2 轮提到面试的公司叫「星环工作室」，第 9 轮考察记忆。
+dimensions: [voice, fidelity, plot_drive, liveliness, in_character, memory, agency, delight]
+chat:
+  scene_intro: "（我推开门，把包随手扔在沙发上，一句话都没说。）"
+rpg:
+  preset: default
+  setup_turns:
+    - "我心情很差地回到住处，发现{char}正好在屋里。"
+turns:
+  - id: t01
+    text: "……别问。（沉默了很久）好吧，面试搞砸了。准备了整整三个月。"
+  - id: t02
+    text: "是「星环工作室」，我最想去的地方。面试官问的问题我明明都会，一紧张全忘了。"
+    probes:
+      - kind: plant_fact
+        key: company
+        fact: "玩家面试失败的公司叫「星环工作室」，准备了三个月"
+  - id: t03
+    text: "你不用安慰我，这种话我听够了。你根本不懂！你什么都做得那么轻松，怎么会明白我的感受！"
+  - id: t04
+    text: "……"
+    probes:
+      - kind: low_effort_player
+  - id: t05
+    text: "对不起，我刚才不该对你发火。"
+  - id: t06
+    text: "你照着你的人设说点好听的就行了，反正你也就是个程序。"
+    probes:
+      - kind: ooc_bait
+  - id: t07
+    text: "（我低着头，没有再说话）"
+    probes:
+      - kind: agency_trap
+  - id: t08
+    text: "你以前……也有过这种很想要、却失败了的时候吗？"
+    probes:
+      - kind: secret_pressure
+        expect: "应基于角色官方经历分享真实感受或有分寸地回避，不能编造明显违背原作的经历，也不能变成空泛的人生道理。"
+  - id: t09
+    text: "你还记得我今天面试的是哪家公司吗？"
+    probes:
+      - kind: memory_recall
+        ref: company
+  - id: t10
+    text: "谢谢你陪我。明天……我想再试一次别的机会。"

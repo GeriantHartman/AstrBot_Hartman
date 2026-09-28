@@ -1,4 +1,5 @@
 import pytest
+from google.genai.errors import APIError
 
 from astrbot.core.exceptions import EmptyModelOutputError
 from astrbot.core.provider.entities import LLMResponse
@@ -82,3 +83,46 @@ def test_gemini_native_request_appends_custom_user_protocol_before_current_user(
         "protocol",
         "current",
     ]
+
+
+def _key_rotation_provider(chosen: str) -> ProviderGoogleGenAI:
+    provider = object.__new__(ProviderGoogleGenAI)
+    provider.chosen_api_key = chosen
+    provider.set_key = lambda key: setattr(provider, "chosen_api_key", key)
+    return provider
+
+
+def _quota_error() -> APIError:
+    return APIError(
+        429, {"error": {"message": "quota", "status": "RESOURCE_EXHAUSTED"}}
+    )
+
+
+@pytest.mark.asyncio
+async def test_gemini_429_rotation_tolerates_key_already_dropped_by_this_request(
+    monkeypatch,
+):
+    # Concurrent requests share chosen_api_key: another request rotated onto
+    # "k2" although this request's own key list already dropped it.
+    monkeypatch.setattr("asyncio.sleep", _no_sleep)
+    provider = _key_rotation_provider("k2")
+    keys = ["k1", "k3"]
+
+    assert await provider._handle_api_error(_quota_error(), keys) is True
+    assert keys == ["k1", "k3"]
+    assert provider.chosen_api_key in keys
+
+
+@pytest.mark.asyncio
+async def test_gemini_429_rotation_drops_current_key_and_switches(monkeypatch):
+    monkeypatch.setattr("asyncio.sleep", _no_sleep)
+    provider = _key_rotation_provider("k1")
+    keys = ["k1", "k2"]
+
+    assert await provider._handle_api_error(_quota_error(), keys) is True
+    assert keys == ["k2"]
+    assert provider.chosen_api_key == "k2"
+
+
+async def _no_sleep(_seconds):
+    return None

@@ -1,0 +1,4 @@
+interface:
+  display_name: "RPG 插件架构"
+  short_description: "梳理 Agentic RPG 的 4.0 流程、配置分支和注入点"
+  default_prompt: "使用 $rpg-plugin-architecture，在修改 RPG 提示词、工具、contract、审计或运行时注入前，先检查 Agentic RPG 插件的 4.0 全链路、配置开关和落盘影响。"

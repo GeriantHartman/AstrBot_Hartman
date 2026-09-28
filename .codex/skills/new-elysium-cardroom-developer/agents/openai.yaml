@@ -1,0 +1,4 @@
+interface:
+  display_name: "New Elysium Cardroom Developer"
+  short_description: "Develop the New Elysium Cardroom plugin"
+  default_prompt: "Use $new-elysium-cardroom-developer to inspect or modify the New Elysium Cardroom AstrBot plugin."

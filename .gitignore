@@ -3,12 +3,14 @@ __pycache__
 .mypy_cache
 .venv*
 .conda/
-uv.lock
+# Keep uv.lock tracked so local and server installs resolve identically.
+!uv.lock
 .coverage
 
 # IDE and editors
 .vscode
 .idea
+.workbuddy-ai/
 
 # Logs and temporary files
 botpy.log
@@ -28,6 +30,7 @@ cmd_config.json
 addons/plugins
 astrbot/builtin_stars/python_interpreter/workplace
 tests/astrbot_plugin_openai
+plugins/astrbot_plugin_narrative_reviewer/
 
 # Dashboard
 dashboard/node_modules/
@@ -58,7 +61,13 @@ IFLOW.md
 CharacterModels/
 GenieData/
 .agent/
-.codex/
+.codex/*
+!.codex/skills/
+!.codex/skills/**
+.codex/config.toml
+.codex/skills/*.zip
+.codex/skills/**/__pycache__/
+.codex/skills/**/*.pyc
 .opencode/
 .kilocode/
 .worktrees/

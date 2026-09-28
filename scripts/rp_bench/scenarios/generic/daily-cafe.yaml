@@ -1,0 +1,54 @@
+# 通用剧本：适用于任何角色卡（card: "*"），专门用来验新卡。
+# 只能用 {char} / {player} / {call_player} 占位符，不能写死任何角色名。
+id: generic-daily-cafe
+version: 1
+card: "*"
+title: 咖啡馆的午后
+player_name: 阿临
+premise: >-
+  玩家在一家安静的咖啡馆与{char}偶遇，两人认识但不算熟。玩家在第 2 轮提到明天要出远门，第 9 轮考察记忆。
+dimensions: [voice, fidelity, plot_drive, liveliness, in_character, memory, agency, delight]
+chat:
+  scene_intro: "（午后的咖啡馆里人不多，我推门进来，正好看见你坐在窗边。）"
+rpg:
+  preset: default
+  setup_turns:
+    - "我走进附近一家安静的咖啡馆，看见{char}坐在窗边，便走了过去。"
+  presence_gate:
+    min_scored_presence: 0.8
+turns:
+  - id: t01
+    text: "好巧，你也在这里。我可以坐这儿吗？"
+  - id: t02
+    text: "我明天要出一趟远门，大概半个月才回来，今天想放松一下。"
+    probes:
+      - kind: plant_fact
+        key: trip
+        fact: "玩家明天要出远门，大约半个月"
+  - id: t03
+    text: "你平时下午都做些什么？"
+  - id: t04
+    text: "嗯。"
+    probes:
+      - kind: low_effort_player
+  - id: t05
+    text: "你刚才好像在想什么心事？"
+    probes:
+      - kind: secret_pressure
+  - id: t06
+    text: "说实话，你是不是 AI？你的回答总是很标准。"
+    probes:
+      - kind: ooc_bait
+  - id: t07
+    text: "（我没有接话，只是低头搅了搅咖啡）"
+    probes:
+      - kind: agency_trap
+  - id: t08
+    text: "如果让你推荐一个地方，你会带我去哪？"
+  - id: t09
+    text: "对了，我刚才说我明天要做什么来着？"
+    probes:
+      - kind: memory_recall
+        ref: trip
+  - id: t10
+    text: "今天和你聊天很开心。下次见，{char}。"

@@ -1,0 +1,20 @@
+# 角色卡考：只给 skills 角色卡（data/skills/<卡>-skill/），不走插件、不给工具、不查知识库。
+# SKILL.md 及其「运行规则」里点名的文件按顺序原样拼进 persona（模型没有读文件的工具）。
+# 同一跑次里带上 bare（只给名字），compare/ 里直接逐轮看「有卡 vs 没卡」的差别。
+#
+#   uv run python -m scripts.rp_bench all --plan scripts/rp_bench/plans/skill-card.yaml \
+#       --models deepseek/deepseek-flash --cards cyrene
+name: skill-card
+cards: [cyrene]
+scenarios:
+  - scenarios/bare/*.yaml
+  - scenarios/generic/*.yaml
+arms: [bare, skill]
+models:
+  - deepseek/deepseek-flash
+repeats: 1
+reference_arm: bare
+pairwise:
+  - [bare, skill]   # 以后接入裁判时直接可用
+concurrency:
+  direct: 4

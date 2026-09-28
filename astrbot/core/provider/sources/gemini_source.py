@@ -121,7 +121,10 @@ class ProviderGoogleGenAI(Provider):
             e.message = ""
 
         if e.code == 429 or "API key not valid" in e.message:
-            keys.remove(self.chosen_api_key)
+            # chosen_api_key is shared by concurrent requests, so another request
+            # may have rotated onto a key this request's own list already dropped.
+            if self.chosen_api_key in keys:
+                keys.remove(self.chosen_api_key)
             if len(keys) > 0:
                 self.set_key(random.choice(keys))
                 logger.info(

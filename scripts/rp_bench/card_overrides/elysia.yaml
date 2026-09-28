@@ -1,0 +1,8 @@
+# 卡片里的自称/称呼规则是自然语言，自动抽取只能拿到引号里的词。
+# 这里补充程序读不出来的「频率」约束，供确定性指标使用。
+#   rare_self: 自称词 → 允许出现的最高轮次占比（超过就记一次违规）
+#   allowed_self / forbidden_self / allowed_call / forbidden_call / never_say_literals: 追加词表
+#   call_player_placeholder: 剧本里 {call_player} 占位符替换成什么
+rare_self:
+  人家: 0.15
+call_player_placeholder: 可爱的你

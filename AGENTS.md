@@ -40,6 +40,14 @@ Runs on `http://localhost:3000` by default.
 1. Title format: use conventional commit messages
 2. Use English to write PR title and descriptions.
 
+## RP Bench (role-play benchmark)
+
+1. `scripts/rp_bench/` benchmarks "model × character card × plugin" combinations with fixed player scripts. Agents launch it; the user does not run it by hand. Follow `.codex/skills/rp-bench/SKILL.md` (identical copy at `.claude/skills/rp-bench/SKILL.md`; keep both in sync).
+2. Arms: `bare` (character name + game only), `raw` (canonical YAML card), `skill` (full `data/skills/<card>-skill/` bundle), `style_skills`, `rpg4`, `rpg5`.
+3. Plans in `scripts/rp_bench/plans/`: `bare.yaml` compares two models without a card; `card-scale.yaml` ranks one model across card sizes (bare / raw / skill); `card-check.yaml` compares raw vs style_skills; `mvp.yaml` / `regression.yaml` cover RPG 4.0 vs 5.0 and before/after regressions.
+4. Add an arm to an existing run with `all --resume <run_dir> --add-arms <arm>` instead of starting over. Results live in `data/rp_bench/runs/<UTC+8 stamp>-<plan>/`; read `index.md` and `compare/` first.
+5. Without a judge, rankings are reading-based: quote the transcripts, state the sample size, and check lore against the card text itself.
+
 ## RPG tool analysis
 
 1. Tool analysis reports, stats time windows, and report filenames must use UTC+8.

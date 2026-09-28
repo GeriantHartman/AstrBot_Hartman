@@ -1,0 +1,3 @@
+display_name: RPG 工具使用分析
+short_description: 分析 RPG 工具使用并生成报告
+default_prompt: 读取 Agentic RPG 的 rpg_stats.json，按需要归档旧数据或使用时间窗口，分析工具调用频率、失败率、延迟、低频工具、Router 误调用候选和 4.0 Commit Gate 拦截原因，并生成中文 Markdown 工具分析报告。

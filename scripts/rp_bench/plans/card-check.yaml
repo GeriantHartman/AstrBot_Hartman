@@ -1,0 +1,20 @@
+# 验新卡：把 cards 换成新卡的文件名（canonical_characters/ 下的 stem），跑通用剧本。
+# 不走 RPG，只看这张卡在裸模型和 style_skills 下立不立得住，便宜、快。
+# 用法：uv run python -m scripts.rp_bench all --plan scripts/rp_bench/plans/card-check.yaml
+name: card-check
+cards: [elysia]
+scenarios:
+  - scenarios/generic/*.yaml
+arms: [raw, style_skills]
+models:
+  - deepseek/deepseek-v4-flash
+repeats: 2
+reference_arm: raw
+pairwise:
+  - [raw, style_skills]
+judge:
+  provider_id: 专用/gemini-3.1-pro-preview
+  temperature: 0
+concurrency:
+  direct: 4
+  judge: 4

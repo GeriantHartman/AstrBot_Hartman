@@ -1,0 +1,25 @@
+# 卡规模排名：同一个模型、同一个角色，只换角色卡的规模，看谁演得最好。
+#   bare  —— 只给「角色名 + 作品名」（约 40 字）
+#   raw   —— canonical YAML 卡（plugins/astrbot_plugin_agentic_RPG/canonical_characters/<卡>.yaml）
+#   skill —— skills 角色卡（data/skills/<卡>-skill/，SKILL.md + 点名文件原样拼进 persona）
+# 不走插件、不给工具、不查知识库。三档在同一跑次里，compare/ 逐轮三栏并排。
+#
+#   uv run python -m scripts.rp_bench all --plan scripts/rp_bench/plans/card-scale.yaml \
+#       --models deepseek/deepseek-flash --cards cyrene
+#
+# 卡必须同时有 YAML 卡和 skills 卡；缺哪档就用 --arms 去掉那一档。
+name: card-scale
+cards: [cyrene]
+scenarios:
+  - scenarios/bare/*.yaml
+  - scenarios/generic/*.yaml
+arms: [bare, raw, skill]
+models:
+  - deepseek/deepseek-flash
+repeats: 1
+reference_arm: bare
+pairwise:
+  - [raw, skill]    # 以后接入裁判时直接可用：两张卡谁更好
+  - [bare, raw]     # 有卡比没卡强多少
+concurrency:
+  direct: 4

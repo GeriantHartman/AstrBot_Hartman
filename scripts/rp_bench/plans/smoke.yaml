@@ -1,0 +1,33 @@
+# 冒烟测试：1 张卡、1 个剧本、1 个模型、全部对照组。
+# 用法：uv run python -m scripts.rp_bench all --plan scripts/rp_bench/plans/smoke.yaml --smoke
+# --smoke 会把剧本截到前 smoke_turns 轮、只跑 1 次，只用来确认流程通不通，不能下结论。
+name: smoke
+cards: [elysia]
+scenarios:
+  - scenarios/core/elysia-*.yaml
+arms: [raw, style_skills, rpg4, rpg5]
+models:
+  - deepseek/deepseek-v4-flash
+repeats: 2
+smoke_turns: 3
+reference_arm: raw
+pairwise:
+  - [rpg4, rpg5]
+  - [raw, style_skills]
+judge:
+  # 裁判最好和被测模型不同家族，减少「偏袒自家文风」
+  provider_id: 专用/gemini-3.1-pro-preview
+  temperature: 0
+  max_retries: 1
+open_api:
+  base_url: http://127.0.0.1:6185
+  api_key_env: RPBENCH_ASTRBOT_API_KEY   # 或写进 data/rp_bench/secrets.yaml 的 astrbot_api_key
+  config_id: ""                          # 空 = 默认配置 cmd_config.json
+  username: rp-bench
+  timeout_s: 900
+rpg:
+  close_style_skills: true
+concurrency:
+  rpg: 1
+  direct: 4
+  judge: 4

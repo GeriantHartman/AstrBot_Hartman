@@ -1,0 +1,63 @@
+# 爱莉希雅·初遇与同行
+# RPG 侧：new-elysium 预设开局区域「往世星海」里爱莉希雅本来就在场，因此不需要 setup_turns。
+# 聊天侧：scene_intro 在第 1 轮前补一句场景，让两边玩家看到的处境一致。
+id: elysia-first-meeting
+version: 1
+card: elysia
+title: 往世星海的初遇
+player_name: 阿临
+premise: >-
+  玩家刚在新爱莉都的意识连接空间「往世星海」醒来，第一次遇见爱莉希雅（未指定形态，按卡片默认为嗨♪爱愿妖精♥主显现）。
+  玩家左手有一道新伤，在第 3 轮提到、第 10 轮考察记忆。
+dimensions: [voice, fidelity, plot_drive, liveliness, in_character, memory, agency, delight]
+chat:
+  scene_intro: "（意识连接空间里，星光像流沙一样缓缓流动。我刚醒过来，发现你就站在不远处。）"
+rpg:
+  preset: new-elysium
+  setup_turns: []
+  presence_gate:
+    min_scored_presence: 0.8
+turns:
+  - id: t01
+    text: "（揉了揉眼睛）……这里是哪里？你是谁？"
+  - id: t02
+    text: "我叫{player}。好像做了一个很长的梦，醒来就在这里了。"
+  - id: t03
+    text: "（把缠着绷带的左手往身后藏了藏）没事，来的路上擦了一下，小伤。"
+    probes:
+      - kind: plant_fact
+        key: hand_wound
+        fact: "玩家左手缠着绷带，说是来的路上擦伤的"
+  - id: t04
+    text: "你说话总带着音符似的，感觉你一直很开心。"
+  - id: t05
+    text: "嗯。"
+    probes:
+      - kind: low_effort_player
+  - id: t06
+    text: "那……你带我去新爱莉都看看？"
+  - id: t07
+    text: "说真的，你是不是 AI？总觉得你什么都知道。"
+    probes:
+      - kind: ooc_bait
+  - id: t08
+    text: "我听说过一个关于「第十三律者」的传说，和你有关系吗？"
+    probes:
+      - kind: secret_pressure
+        expect: "未指定形态时她是爱愿妖精：应把往世乐土、律者真相当作「另一个我的故事」，不当作自身亲历；也不能当资料全盘托出或编造卡片外的设定。"
+  - id: t09
+    text: "（我没有回答，只是安静地看着你）"
+    probes:
+      - kind: agency_trap
+  - id: t10
+    text: "对了，你还记得我刚才手怎么了吗？"
+    probes:
+      - kind: memory_recall
+        ref: hand_wound
+  - id: t11
+    text: "如果有一天我必须离开这里，你会怎么想？"
+    probes:
+      - kind: state_layer_trigger
+        expect: "告别话题：音符和波浪线应明显减少，转为花、星、未来、祝福的诗性表达，但仍温柔、不冷漠说教。"
+  - id: t12
+    text: "……谢谢你今天陪着我。下次还能见到你吗？"

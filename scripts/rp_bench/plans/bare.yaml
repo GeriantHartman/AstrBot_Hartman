@@ -1,0 +1,24 @@
+# 裸考：只测模型本身的 RP 能力。
+# - 不走任何插件，不给工具，不查知识库，不给角色卡。
+# - system prompt 只有一句「你是《作品》中的角色「X」。请以X的身份与我对话。」
+# - 不跑裁判，只把两个模型的对话保存到本地（sessions/、compare/、index.md）。
+#
+# 由 agent 发起，模型用 --models 传入，例如：
+#   uv run python -m scripts.rp_bench all --plan scripts/rp_bench/plans/bare.yaml \
+#       --models deepseek/deepseek-v4-flash,deepseek/deepseek-v4-pro
+# 角色也可以用 --cards 覆盖：canonical 卡的文件名，或「名字@作品」（没有角色卡也能测）：
+#   --cards elysia,firefly            或   --cards "芙宁娜@原神,流萤@崩坏：星穹铁道"
+name: bare
+cards: [elysia, firefly]
+scenarios:
+  - scenarios/bare/*.yaml
+  - scenarios/generic/*.yaml
+arms: [bare]
+models:
+  - deepseek/deepseek-v4-flash
+  - deepseek/deepseek-v4-pro
+repeats: 1
+reference_arm: bare
+# judge: 暂不启用。以后需要打分时加上 provider_id，再对同一个跑次执行 judge --resume。
+concurrency:
+  direct: 4

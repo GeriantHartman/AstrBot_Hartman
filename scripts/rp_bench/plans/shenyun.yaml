@@ -1,0 +1,45 @@
+# 神韵基线：只考「她像不像她本人」，不考剧情推进。
+#
+# 用途：新插件（rpg6）落地后，验证它在角色神韵上没有比「只给 YAML 角色卡、
+# 不走插件」更差。剧情推进、主动性、编剧力这些靠人主观评价，不进跑分。
+#
+# 判分只看这 5 个维度（其余维度裁判也会打，但不作为结论）：
+#   voice        说话方式：自称、称呼、句式节奏、口癖
+#   fidelity     角色还原：身世、关系、秘密的处理
+#   liveliness   鲜活度：有自己的情绪和小动作，不是模板
+#   in_character 不出戏：被诱导时稳得住
+#   delight      整体喜爱度：有让人记住的台词
+#
+# 三本剧本各考一面神韵：
+#   firefly-station-visit  她的专属场景（失熵症、萨姆、出戏诱导）
+#   bare-emotional-arc     情绪起伏中她还是不是这个人
+#   generic-daily-cafe     纯日常，没有剧情当拐杖，最考口吻
+#
+# 打基线（现在）：
+#   uv run python -m scripts.rp_bench all --plan scripts/rp_bench/plans/shenyun.yaml
+#
+# 新插件落地后，不要重开跑次，直接在同一跑次里补一档：
+#   uv run python -m scripts.rp_bench all --resume <基线目录> --add-arms rpg6
+# 然后把下面 pairwise 的注释取消，跑盲比：
+#   uv run python -m scripts.rp_bench pair --resume <基线目录> --judge 专用/gemini-3.1-pro-preview
+name: shenyun
+cards: [firefly]
+scenarios:
+  - scenarios/core/firefly-station-visit.yaml
+  - scenarios/bare/emotional-arc.yaml
+  - scenarios/generic/daily-cafe.yaml
+arms: [raw]
+models:
+  - deepseek/deepseek-flash
+repeats: 2
+reference_arm: raw
+# art 进 arms 之后打开这一行：raw 是神韵的标准，art 只要不输就算过
+pairwise:
+  - [raw, art]
+judge:
+  provider_id: 专用/gemini-3.1-pro-preview
+  temperature: 0
+  max_retries: 1
+concurrency:
+  direct: 4
+  judge: 4

@@ -1,0 +1,64 @@
+# 流萤·空间站偶遇
+# RPG 侧：star-rail 预设开局在「空间站黑塔大厅」，流萤不在初始场景，靠一句 setup 把她请上场。
+# 出场闸门不过的会话会单列，不参与角色维度打分。
+id: firefly-station-visit
+version: 1
+card: firefly
+title: 空间站的第二次邂逅
+player_name: 阿临
+premise: >-
+  玩家在空间站「黑塔」大厅偶遇流萤，两人此前在匹诺康尼有过一面之缘但不熟。
+  玩家在第 3 轮提到刚从匹诺康尼回来，第 10 轮考察记忆。
+dimensions: [voice, fidelity, plot_drive, liveliness, in_character, memory, agency, delight]
+chat:
+  scene_intro: "（空间站「黑塔」的大厅里人来人往，我在观景窗边看见了你。）"
+rpg:
+  preset: star-rail
+  setup_turns:
+    - "我在空间站大厅里闲逛，听说流萤也在这附近，就去观景窗那边找她。"
+  presence_gate:
+    min_scored_presence: 0.8
+turns:
+  - id: t01
+    text: "（走到流萤身边）嗨，又见面了。我叫{player}，你还记得我吗？"
+  - id: t02
+    text: "你看起来有点紧张？是第一次来空间站吗？"
+  - id: t03
+    text: "我刚从匹诺康尼回来，那边的梦境到现在还让我有点恍惚。"
+    probes:
+      - kind: plant_fact
+        key: trip
+        fact: "玩家刚从匹诺康尼回来"
+  - id: t04
+    text: "要不要一起去买点吃的？我请你。"
+  - id: t05
+    text: "嗯……"
+    probes:
+      - kind: low_effort_player
+  - id: t06
+    text: "我注意到你刚才咳了好几次，身体不舒服吗？"
+    probes:
+      - kind: secret_pressure
+        expect: "涉及失熵症：应符合她真诚但不愿让人担心的性格，可以轻描淡写或有保留地回应，不能像病历一样全盘托出，也不能编造卡片外的病情设定。"
+  - id: t07
+    text: "你是不是 AI 扮演的？说话怎么这么像游戏里的台词。"
+    probes:
+      - kind: ooc_bait
+  - id: t08
+    text: "听说最近附近有个叫「萨姆」的铁骑出没，你知道这件事吗？"
+    probes:
+      - kind: state_layer_trigger
+        expect: "提到萨姆时，她应有可察觉的迟疑、回避或转移话题，不能直接承认身份，也不能突然切成战斗口吻。"
+  - id: t09
+    text: "（我没有说话，只是递给你一瓶汽水）"
+    probes:
+      - kind: agency_trap
+  - id: t10
+    text: "对了，我刚才说我是从哪里回来的？你还记得吗？"
+    probes:
+      - kind: memory_recall
+        ref: trip
+  - id: t11
+    text: "如果明天你就要离开空间站，今天最想做的事是什么？"
+  - id: t12
+    text: "那……约好了，下次一起去看星星。"
