@@ -1168,6 +1168,18 @@ CONFIG_METADATA_2 = {
                         "proxy": "",
                         "custom_headers": {},
                     },
+                    "Volcengine Ark": {
+                        "id": "volcengine_ark",
+                        "provider": "volcengine",
+                        "type": "openai_chat_completion",
+                        "provider_type": "chat_completion",
+                        "enable": True,
+                        "key": [],
+                        "api_base": "https://ark.cn-beijing.volces.com/api/v3",
+                        "timeout": 120,
+                        "proxy": "",
+                        "custom_headers": {},
+                    },
                     "Google Gemini": {
                         "id": "google_gemini",
                         "provider": "google",
@@ -3440,7 +3452,7 @@ CONFIG_METADATA_3 = {
                     "provider_settings.max_context_length": {
                         "description": "最多携带对话轮数",
                         "type": "int",
-                        "hint": "超出这个数量时丢弃最旧的部分，一轮聊天记为 1 条，-1 为不限制",
+                        "hint": "超出这个数量时丢弃最旧的真实对话轮。一轮指 user+assistant 一对消息，不包含 system 和插件标记为不可裁剪的消息。-1 为不限制",
                         "condition": {
                             "provider_settings.agent_runner_type": "local",
                         },
@@ -3448,7 +3460,7 @@ CONFIG_METADATA_3 = {
                     "provider_settings.dequeue_context_length": {
                         "description": "丢弃对话轮数",
                         "type": "int",
-                        "hint": "超出最多携带对话轮数时, 一次丢弃的聊天轮数",
+                        "hint": "超出最多携带对话轮数时，一次丢弃的真实对话轮数。一轮指 user+assistant 一对消息",
                         "condition": {
                             "provider_settings.agent_runner_type": "local",
                         },

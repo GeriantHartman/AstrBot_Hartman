@@ -12,6 +12,7 @@ from astrbot.core.agent.message import AssistantMessageSegment, UserMessageSegme
 from astrbot.core.db import BaseDatabase
 from astrbot.core.db.po import Conversation, ConversationV2
 from astrbot.core.utils.datetime_utils import to_utc_timestamp
+from astrbot.core.utils.json_utils import json_loads_no_bom
 
 
 class ConversationManager:
@@ -383,7 +384,7 @@ class ConversationManager:
         conversation = await self.get_conversation(unified_msg_origin, conversation_id)
         if not conversation:
             return [], 0
-        history = json.loads(conversation.history)
+        history = json_loads_no_bom(conversation.history)
 
         # contexts_groups 存放按顺序的段落（每个段落是一个 str 列表），
         # 之后会被展平成一个扁平的 str 列表返回。

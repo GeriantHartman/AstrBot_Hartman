@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import copy
 import datetime
-import json
 import os
 import platform
 import zoneinfo
@@ -88,6 +87,7 @@ from astrbot.core.utils.astrbot_path import (
     get_astrbot_workspaces_path,
 )
 from astrbot.core.utils.file_extract import extract_file_moonshotai
+from astrbot.core.utils.json_utils import json_loads_no_bom
 from astrbot.core.utils.llm_metadata import LLM_METADATAS
 from astrbot.core.utils.media_utils import (
     IMAGE_COMPRESS_DEFAULT_MAX_SIZE,
@@ -1153,7 +1153,7 @@ async def build_main_agent(
                 "provider_request 必须是 ProviderRequest 类型。"
             )
             if req.conversation:
-                req.contexts = json.loads(req.conversation.history)
+                req.contexts = json_loads_no_bom(req.conversation.history)
         else:
             req = ProviderRequest()
             req.prompt = ""
@@ -1286,11 +1286,11 @@ async def build_main_agent(
 
             conversation = await _get_session_conv(event, plugin_context)
             req.conversation = conversation
-            req.contexts = json.loads(conversation.history)
+            req.contexts = json_loads_no_bom(conversation.history)
             event.set_extra("provider_request", req)
 
     if isinstance(req.contexts, str):
-        req.contexts = json.loads(req.contexts)
+        req.contexts = json_loads_no_bom(req.contexts)
     thread_selected_text = event.get_extra("thread_selected_text")
     if isinstance(thread_selected_text, str) and thread_selected_text.strip():
         req.extra_user_content_parts.append(

@@ -1,0 +1,6 @@
+name: astrbot_plugin_nsfw_mode
+version: 0.1.0
+author: Hartman
+desc: Session-scoped NSFW mode with command-only enter/exit, isolated style injection, provider fallback, and exit summary compaction
+display_name: NSFW Mode
+astrbot_version: ">=4.16"

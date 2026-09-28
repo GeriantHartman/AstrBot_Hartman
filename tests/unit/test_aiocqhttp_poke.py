@@ -6,6 +6,8 @@ import astrbot.core.message.components as Comp
 from astrbot.core.message.message_event_result import MessageChain
 from astrbot.core.pipeline.respond.stage import RespondStage
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
+    MAX_ONEBOT_FORWARD_NODE_TEXT_CHARS,
+    MAX_ONEBOT_TEXT_CHARS,
     AiocqhttpMessageEvent,
 )
 
@@ -48,4 +50,25 @@ async def test_aiocqhttp_send_message_dispatches_onebot_v11_poke_payload():
     bot.send_group_msg.assert_awaited_once_with(
         group_id=123456,
         message=[{"type": "poke", "data": {"type": "126", "id": "2003"}}],
+    )
+
+
+def test_aiocqhttp_splits_long_plain_messages_before_dispatch():
+    text = "A" * (MAX_ONEBOT_TEXT_CHARS + 20)
+    chains = AiocqhttpMessageEvent._split_plain_chains(MessageChain([Comp.Plain(text)]))
+
+    assert len(chains) == 2
+    assert all(len(chain.chain[0].text) <= MAX_ONEBOT_TEXT_CHARS for chain in chains)
+
+
+def test_aiocqhttp_splits_long_forward_nodes_before_dispatch():
+    text = "A" * (MAX_ONEBOT_FORWARD_NODE_TEXT_CHARS + 20)
+    nodes = AiocqhttpMessageEvent._split_nodes(
+        Comp.Nodes([Comp.Node([Comp.Plain(text)], name="AstrBot", uin="10000")])
+    )
+
+    assert len(nodes.nodes) == 2
+    assert all(
+        len(node.content[0].text) <= MAX_ONEBOT_FORWARD_NODE_TEXT_CHARS
+        for node in nodes.nodes
     )

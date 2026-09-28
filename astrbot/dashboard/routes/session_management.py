@@ -525,7 +525,7 @@ class SessionManagementRoute(Route):
                     svc_config.get("llm_enabled", True) if svc_config else True
                 )
                 tts_enabled = (
-                    svc_config.get("tts_enabled", True) if svc_config else True
+                    svc_config.get("tts_enabled", False) if svc_config else False
                 )
 
                 # 搜索过滤

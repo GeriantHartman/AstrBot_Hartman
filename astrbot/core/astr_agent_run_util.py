@@ -196,9 +196,10 @@ async def run_agent(
                         # tool_direct_result 用于标记 llm tool 需要直接发送给用户的内容
                         await astr_event.send(msg_chain)
                         continue
-                    if astr_event.get_platform_id() == "webchat":
-                        await astr_event.send(msg_chain)
-                    elif show_tool_use and show_tool_call_result:
+                    if show_tool_use and show_tool_call_result:
+                        if astr_event.get_platform_id() == "webchat":
+                            await astr_event.send(msg_chain)
+                            continue
                         status_msg = _build_tool_result_status_message(
                             msg_chain, tool_name_by_call_id
                         )
@@ -224,9 +225,10 @@ async def run_agent(
                     )
                     _record_tool_call_name(tool_info, tool_name_by_call_id)
 
-                    if astr_event.get_platform_name() == "webchat":
-                        await astr_event.send(resp.data["chain"])
-                    elif show_tool_use:
+                    if show_tool_use:
+                        if astr_event.get_platform_name() == "webchat":
+                            await astr_event.send(resp.data["chain"])
+                            continue
                         if show_tool_call_result and isinstance(tool_info, dict):
                             # Delay tool status notification until tool_call_result.
                             continue

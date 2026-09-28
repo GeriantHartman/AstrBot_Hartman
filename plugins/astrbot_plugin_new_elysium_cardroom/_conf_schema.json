@@ -1,0 +1,160 @@
+{
+  "total_players": {
+    "description": "总玩家数",
+    "hint": "游戏需要的总人数，默认 9 人。",
+    "type": "int",
+    "default": 9
+  },
+  "werewolf_count": {
+    "description": "狼人数量",
+    "type": "int",
+    "default": 3
+  },
+  "seer_count": {
+    "description": "预言家数量",
+    "type": "int",
+    "default": 1
+  },
+  "witch_count": {
+    "description": "女巫数量",
+    "type": "int",
+    "default": 1
+  },
+  "hunter_count": {
+    "description": "猎人数量",
+    "type": "int",
+    "default": 1
+  },
+  "villager_count": {
+    "description": "平民数量",
+    "type": "int",
+    "default": 3
+  },
+  "ai_player_model": {
+    "description": "AI玩家模型提供商ID",
+    "hint": "留空使用 AstrBot 当前默认模型。",
+    "type": "string",
+    "default": ""
+  },
+  "character_skill_root": {
+    "description": "角色卡 skills 根目录",
+    "hint": "留空时使用当前 AstrBot data/skills，避免迁移到另一台电脑后依赖旧绝对路径。",
+    "type": "string",
+    "default": ""
+  },
+  "default_ai_skill_roster": {
+    "description": "默认补位角色卡列表",
+    "hint": "用于 /补满角色AI；可以填 JSON 数组或逗号分隔字符串。",
+    "type": "list",
+    "default": [
+      "elysia.skill",
+      "silver-wolf-lv999-skill",
+      "firefly-skill-1.1.0-beta",
+      "seele-vollerei-skill",
+      "bronya-zaychik-skill",
+      "march-7th-skill",
+      "castorice-skill"
+    ]
+  },
+  "enable_character_skill_ai": {
+    "description": "启用角色卡AI",
+    "hint": "开启后角色AI会读取角色卡和 tabletop_werewolf.md / tabletop_splendor.md。",
+    "type": "bool",
+    "default": true
+  },
+  "enable_character_behavior_rolls": {
+    "description": "启用角色行为概率",
+    "hint": "每次 AI 行动前抽取本轮桌游姿态，例如护短、严打、犯呆或认真竞技。",
+    "type": "bool",
+    "default": true
+  },
+  "character_behavior_intensity": {
+    "description": "角色行为概率强度",
+    "hint": "可选 soft / balanced / dramatic。",
+    "type": "string",
+    "default": "balanced"
+  },
+  "suppress_default_llm_during_room": {
+    "description": "房间存在时隔离通用LLM回复",
+    "hint": "开启后当前群有棋牌室房间时，错误命令不会被通用角色扮演 LLM 接管。",
+    "type": "bool",
+    "default": true
+  },
+  "enable_ai_review": {
+    "description": "启用AI复盘",
+    "type": "bool",
+    "default": true
+  },
+  "ai_review_model": {
+    "description": "AI复盘模型提供商ID",
+    "hint": "留空使用默认模型。",
+    "type": "string",
+    "default": ""
+  },
+  "ai_review_prompt": {
+    "description": "AI复盘自定义提示词",
+    "type": "text",
+    "default": ""
+  },
+  "enable_cardroom_audit": {
+    "description": "启用棋牌室审计账本",
+    "hint": "记录房间事件、AI prompt、回复、行为概率，方便复盘。",
+    "type": "bool",
+    "default": true
+  },
+  "audit_prompt_max_chars": {
+    "description": "审计 prompt 最大字符数",
+    "type": "int",
+    "default": 12000
+  },
+  "audit_response_max_chars": {
+    "description": "审计回复最大字符数",
+    "type": "int",
+    "default": 4000
+  },
+  "timeout_wolf": {
+    "description": "狼人行动超时（秒）",
+    "type": "int",
+    "default": 120
+  },
+  "timeout_seer": {
+    "description": "预言家验人超时（秒）",
+    "type": "int",
+    "default": 120
+  },
+  "timeout_witch": {
+    "description": "女巫行动超时（秒）",
+    "type": "int",
+    "default": 120
+  },
+  "timeout_hunter": {
+    "description": "猎人开枪超时（秒）",
+    "type": "int",
+    "default": 120
+  },
+  "timeout_speaking": {
+    "description": "发言超时（秒）",
+    "type": "int",
+    "default": 120
+  },
+  "timeout_vote": {
+    "description": "投票超时（秒）",
+    "type": "int",
+    "default": 120
+  },
+  "timeout_dead_min": {
+    "description": "死亡玩家等待最短时间（秒）",
+    "type": "int",
+    "default": 10
+  },
+  "timeout_dead_max": {
+    "description": "死亡玩家等待最长时间（秒）",
+    "type": "int",
+    "default": 15
+  },
+  "ban_duration_days": {
+    "description": "出局禁言时长（天）",
+    "type": "int",
+    "default": 30
+  }
+}

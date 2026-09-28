@@ -41,6 +41,10 @@ class ContextManager:
                 truncate_turns=config.truncate_turns
             )
 
+    def _count_truncatable_messages(self, messages: list[Message]) -> int:
+        """Count real non-pinned messages that max-turn truncation can drop."""
+        return sum(1 for message in messages if not self.truncator._is_pinned(message))
+
     async def process(
         self,
         messages: list[Message],
@@ -64,11 +68,28 @@ class ContextManager:
 
             # 1. 基于轮次的截断 (Enforce max turns)
             if self.config.enforce_max_turns != -1:
+                before_len = len(result)
+                before_truncatable = self._count_truncatable_messages(result)
                 result = self.truncator.truncate_by_turns(
                     result,
                     keep_most_recent_turns=self.config.enforce_max_turns,
                     drop_turns=self.config.truncate_turns,
                 )
+                after_truncatable = self._count_truncatable_messages(result)
+                if len(result) != before_len or after_truncatable != before_truncatable:
+                    logger.info(
+                        "Context max-turn truncation applied: "
+                        "max_turns=%s, drop_turns=%s, "
+                        "messages=%s->%s, truncatable_turns=%s->%s, "
+                        "pinned_messages=%s",
+                        self.config.enforce_max_turns,
+                        self.config.truncate_turns,
+                        before_len,
+                        len(result),
+                        before_truncatable // 2,
+                        after_truncatable // 2,
+                        len(result) - after_truncatable,
+                    )
 
             # 1.5 Compress old turns (remove tool chains + strip reasoning)
             result = self.truncator.compress_old_turns(

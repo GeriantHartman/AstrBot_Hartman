@@ -51,6 +51,7 @@ from astrbot.core.utils.network_utils import (
 from astrbot.core.utils.string_utils import normalize_and_dedupe_strings
 
 from ..register import register_provider_adapter
+from .prompt_post_processor import expand_custom_user_protocol, merge_adjacent_messages
 
 
 @register_provider_adapter(
@@ -59,6 +60,25 @@ from ..register import register_provider_adapter
 )
 class ProviderOpenAIOfficial(Provider):
     _ERROR_TEXT_CANDIDATE_MAX_CHARS = 4096
+    _OPENCODE_GO_USER_AGENT = "astrbot-agentic-rpg/1.0"
+
+    @staticmethod
+    def _is_opencode_go(provider_config: dict) -> bool:
+        """OpenCode Go / Zen is identified by its api_base host."""
+        return "opencode.ai" in str(provider_config.get("api_base") or "").lower()
+
+    def _opencode_session_headers(self, session_id) -> dict[str, str] | None:
+        """Per-conversation session id for OpenCode Go routing / prompt caching.
+
+        The docs require a *stable* id per conversation; hashing the AstrBot
+        session id keeps it stable while avoiding leaking group/chat ids to the
+        provider.
+        """
+        if not self._opencode_go or not session_id:
+            return None
+        return {
+            "x-opencode-session": f"astrbot-{uuid.uuid5(uuid.NAMESPACE_URL, str(session_id)).hex}",
+        }
 
     @classmethod
     def _truncate_error_text_candidate(cls, text: str) -> str:
@@ -463,6 +483,15 @@ class ProviderOpenAIOfficial(Provider):
             for key in self.custom_headers:
                 self.custom_headers[key] = str(self.custom_headers[key])
 
+        # OpenCode Go rejects generic SDK user agents and asks clients to identify
+        # themselves instead (https://opencode.ai/docs/go/), so stamp our own
+        # default UA unless the user already configured one.
+        self._opencode_go = self._is_opencode_go(provider_config)
+        if self._opencode_go:
+            headers = dict(self.custom_headers or {})
+            headers.setdefault("User-Agent", self._OPENCODE_GO_USER_AGENT)
+            self.custom_headers = headers
+
         if "api_version" in provider_config:
             # Using Azure OpenAI API
             self.client = AsyncAzureOpenAI(
@@ -514,14 +543,49 @@ class ProviderOpenAIOfficial(Provider):
 
     async def get_models(self):
         try:
-            models_str = []
-            models = await self.client.models.list()
-            models = sorted(models.data, key=lambda x: x.id)
-            for model in models:
-                models_str.append(model.id)
-            return models_str
+            models = await self._get_models_raw()
+            return self._extract_model_ids(models)
         except NotFoundError as e:
             raise Exception(f"获取模型列表失败：{e}")
+
+    @staticmethod
+    def _extract_model_ids(models: Any) -> list[str]:
+        data = getattr(models, "data", models)
+        if isinstance(data, dict):
+            data = data.get("data", data.get("models", []))
+        if not isinstance(data, list | tuple):
+            return []
+
+        model_ids: list[str] = []
+        for model in data:
+            model_id = None
+            if isinstance(model, str):
+                model_id = model
+            elif isinstance(model, dict):
+                model_id = model.get("id") or model.get("name")
+            else:
+                model_id = getattr(model, "id", None) or getattr(model, "name", None)
+
+            if isinstance(model_id, str) and model_id:
+                model_ids.append(model_id)
+
+        return sorted(normalize_and_dedupe_strings(model_ids))
+
+    async def _get_models_raw(self) -> Any:
+        raw_response = await self.client.models.with_raw_response.list()
+        response = getattr(raw_response, "http_response", raw_response)
+        try:
+            return response.json()
+        except json.JSONDecodeError as e:
+            content_type = response.headers.get("content-type", "unknown")
+            response_text = response.text.strip()
+            if len(response_text) > 300:
+                response_text = f"{response_text[:300]}..."
+            raise Exception(
+                "获取模型列表失败：上游 /models 返回了非 JSON 响应。"
+                f"HTTP {response.status_code}, Content-Type: {content_type}, "
+                f"Body: {response_text or '<empty>'}"
+            ) from e
 
     @staticmethod
     def _sanitize_assistant_messages(payloads: dict) -> None:
@@ -559,7 +623,9 @@ class ProviderOpenAIOfficial(Provider):
 
         payloads["messages"] = cleaned
 
-    async def _query(self, payloads: dict, tools: ToolSet | None) -> LLMResponse:
+    async def _query(
+        self, payloads: dict, tools: ToolSet | None, session_id=None
+    ) -> LLMResponse:
         if tools:
             model = payloads.get("model", "").lower()
             omit_empty_param_field = "gemini" in model or "deepseek" in model
@@ -607,6 +673,7 @@ class ProviderOpenAIOfficial(Provider):
             **payloads,
             stream=False,
             extra_body=extra_body,
+            extra_headers=self._opencode_session_headers(session_id),
         )
 
         if not isinstance(completion, ChatCompletion):
@@ -624,6 +691,7 @@ class ProviderOpenAIOfficial(Provider):
         self,
         payloads: dict,
         tools: ToolSet | None,
+        session_id=None,
     ) -> AsyncGenerator[LLMResponse, None]:
         """流式查询API，逐步返回结果"""
         if tools:
@@ -675,6 +743,7 @@ class ProviderOpenAIOfficial(Provider):
             stream=True,
             extra_body=extra_body,
             stream_options={"include_usage": True},
+            extra_headers=self._opencode_session_headers(session_id),
         )
 
         llm_response = LLMResponse("assistant", is_chunk=True)
@@ -1007,6 +1076,11 @@ class ProviderOpenAIOfficial(Provider):
         if system_prompt:
             context_query.insert(0, {"role": "system", "content": system_prompt})
 
+        context_query = expand_custom_user_protocol(
+            context_query,
+            provider_family="openai",
+        )
+
         for part in context_query:
             if "_no_save" in part:
                 del part["_no_save"]
@@ -1023,6 +1097,8 @@ class ProviderOpenAIOfficial(Provider):
 
         if self._context_contains_image(context_query):
             context_query = await self._materialize_context_image_parts(context_query)
+
+        context_query = merge_adjacent_messages(context_query, roles={"system"})
 
         model = model or self.get_model()
 
@@ -1301,7 +1377,9 @@ class ProviderOpenAIOfficial(Provider):
         for retry_cnt in range(max_retries):
             try:
                 self.client.api_key = chosen_key
-                llm_response = await self._query(payloads, func_tool)
+                llm_response = await self._query(
+                    payloads, func_tool, session_id=session_id
+                )
                 break
             except LLMContentFilteredError:
                 # Content policy — don't retry same provider, propagate up
@@ -1375,7 +1453,9 @@ class ProviderOpenAIOfficial(Provider):
         for retry_cnt in range(max_retries):
             try:
                 self.client.api_key = chosen_key
-                async for response in self._query_stream(payloads, func_tool):
+                async for response in self._query_stream(
+                    payloads, func_tool, session_id=session_id
+                ):
                     yield response
                 break
             except Exception as e:

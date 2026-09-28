@@ -106,8 +106,8 @@ class SessionServiceManager:
         if tts_enabled is not None:
             return tts_enabled
 
-        # 如果没有配置，默认为启用（兼容性考虑）
-        return True
+        # If not configured, TTS is disabled by default.
+        return False
 
     @staticmethod
     async def set_tts_status_for_session(session_id: str, enabled: bool) -> None:

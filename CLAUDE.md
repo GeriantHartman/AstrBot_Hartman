@@ -16,15 +16,18 @@ AstrBot Agentic RPG plugin — a text-based RPG engine for the AstrBot chatbot f
 ## Development Environment
 
 **重要：两个代码位置**
-- **开发位置（唯一修改位置）**: `E:\agentic-rpg\AstrBot\plugins\astrbot_plugin_agentic_RPG`
-- **打包注入位置（只读，不要修改）**: `E:\agentic-rpg\AstrBot\data\plugins\astrbot_plugin_agentic_rpg`
+
+以下路径均相对于本文件所在目录（AstrBot 仓库根目录）。
+
+- **开发位置（唯一修改位置）**: `plugins/astrbot_plugin_agentic_RPG`
+- **打包注入位置（只读，不要修改）**: `data/plugins/astrbot_plugin_agentic_rpg`
 
 所有代码修改只在开发位置进行，打包注入位置是运行时副本，不要直接修改。
 
 **重要：禁止直接读取Astrbot原始log**
-- **Astrbot默认生成的log位置：`E:\agentic-rpg\AstrBot\data\logs`
+- **Astrbot默认生成的log位置：`data/logs`
 禁止直接从该文件夹获取log。log中包含了巨量的文本，会造成大量的token浪费。
-只能读取`E:\agentic-rpg\AstrBot\log.log`中的log。
+只能读取仓库根目录下的 `log.log`。
 该log由用户筛选过。当你认为需要补充log时，先提出要求，由用户为你筛选。
 
 Plugin at `data/plugins/astrbot_plugin_agentic_RPG/`, Skills at `data/skills/rpg-*/`.
@@ -363,6 +366,16 @@ class MyPlugin(star.Star):
 - **状况**：`ContextTruncator.truncate_by_turns` 的 `_split_system_rest` 把 messages 粗分成 "system（全保留）" + "non-system（按 turn 截取最后 N 对）"。这对纯 AstrBot 场景够用，但**对使用 chat_template 结构的插件破产**——插件在 contexts 头部注入 few-shot（role=user/assistant）时，这些消息会作为"最老的 non-system"首批被截掉。同时插件在 contexts 尾部注入 depth-inject（role=system）会被无条件保留（配合 bug 11 导致堆积）。
 - **修复措施**：引入 `_no_truncate` PrivateAttr（`message.py:199` 附近，同时 `bind_checkpoint_messages` 搬运 dict key→PrivateAttr）。插件在注入 message dict 时设置 `"_no_truncate": True`。`truncator._is_pinned(msg)` 返回 `msg.role == "system" or msg._no_truncate`；`truncate_by_turns` 只对 `not _is_pinned` 的 user/assistant 做 `-N*2` 截断，并按原始 index 顺序重建（pinned 保留原位置，truncatable 填充保留项）。`openai_source.py` / `gemini_source.py` 发送前 `del part["_no_truncate"]` 避免 LLM API 收到未知字段。
 - 如果后续 AstrBot 官方升级覆盖了这 4 个文件之一，必须重新补齐（`_no_truncate` PrivateAttr 定义、model_validate 搬运、`_is_pinned` 三-pool 分类、sources 的 del 字段）。验证方法：在 RPG 插件里打开一个长 session（> `keep_most_recent_turns`），对比第 2 轮和第 20 轮的 OpenAI Request payload，few-shot 段字节必须完全一致。
+
+**13. OpenCode Go 强制要求 `x-opencode-session` 会话头 + 专属 UA (已修复)**
+- **文件**：`astrbot/core/provider/sources/openai_source.py`
+- **状况**：OpenCode Go / Zen（`api_base` 含 `opencode.ai`）自 2026-09 起要求客户端在**每段对话**的 `x-opencode-session` 请求头中发送稳定的会话 ID，并发送**自身专属的 user agent** 而非通用 SDK 名（`AsyncOpenAI/Python x.y`）。缺失或使用通用 UA 会被判定为非典型编程 Agent 流量。
+- **修复措施**：
+  - 新增类常量 `_OPENCODE_GO_USER_AGENT = "astrbot-agentic-rpg/1.0"`、静态方法 `_is_opencode_go()`（按 `api_base` 主机名判断）、实例方法 `_opencode_session_headers()`（`uuid.uuid5(NAMESPACE_URL, session_id)` 取 hex，保持稳定且不泄漏群/会话 ID）。
+  - `__init__` 中若识别为 OpenCode Go，则用 `setdefault` 把专属 UA 并入 `custom_headers`（用户显式配置的 UA 优先）。SDK 的 `default_headers` 在 `_base_client.default_headers` 中最后合并，确实能覆盖 `AsyncOpenAI/Python`。
+  - `_query(payloads, tools, session_id=None)` / `_query_stream(payloads, tools, session_id=None)` 新增 `session_id` 形参，`create()` 传 `extra_headers=self._opencode_session_headers(session_id)`（per-request 头优先级高于 `default_headers`）。`text_chat` / `text_chat_stream` 把已有的 `session_id` 透传进去（上游 `tool_loop_agent_runner` 传的是 `req.session_id`，缺省即 `event.unified_msg_origin`）。
+  - 无 `session_id` 时返回 `None`，SDK 视同不发送；非 OpenCode 的 provider 完全不受影响。
+- 如果后续 AstrBot 官方升级覆盖了 `openai_source.py`，必须重新补齐这 3 处（类常量+2 个辅助方法、`__init__` 的 UA 注入、`_query`/`_query_stream` 的 `session_id` 形参与 `extra_headers` 及两个调用点）。验证方法：对 `api_base=https://opencode.ai/zen/go/v1/` 的 provider，用同一个 session_id 连调两次，抓到的请求头里 `x-opencode-session` 必须一致，且 `User-Agent` 为 `astrbot-agentic-rpg/1.0`。
 
 ## Skill routing
 

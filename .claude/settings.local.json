@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python C:/Users/Hartman/.claude/skills/rpg-ledger-audit/scripts/index_summary.py)",
+      "Bash(ls -lt E:/agentic-rpg/AstrBot/data/plugin_data/astrbot_plugin_agentic_rpg/llm_audit_index/*.jsonl)"
+    ]
+  }
+}

@@ -861,6 +861,36 @@ class TestBuildMainAgent:
         assert isinstance(result, module.MainAgentBuildResult)
 
     @pytest.mark.asyncio
+    async def test_build_main_agent_accepts_bom_prefixed_history(
+        self, mock_event, mock_context, mock_provider
+    ):
+        """Test main agent building with legacy BOM-prefixed history."""
+        module = ama
+        mock_context.get_provider_by_id.return_value = None
+        mock_context.get_using_provider.return_value = mock_provider
+        mock_context.get_config.return_value = {}
+
+        conv = _setup_conversation_for_build(mock_context.conversation_manager)
+        conv.history = '\ufeff[{"role": "user", "content": "older turn"}]'
+
+        with (
+            patch("astrbot.core.astr_main_agent.AgentRunner") as mock_runner_cls,
+            patch("astrbot.core.astr_main_agent.AstrAgentContext"),
+        ):
+            mock_runner = MagicMock()
+            mock_runner.reset = AsyncMock()
+            mock_runner_cls.return_value = mock_runner
+
+            result = await module.build_main_agent(
+                event=mock_event,
+                plugin_context=mock_context,
+                config=module.MainAgentBuildConfig(tool_call_timeout=60),
+            )
+
+        assert result is not None
+        assert result.provider_request.contexts[0]["content"] == "older turn"
+
+    @pytest.mark.asyncio
     async def test_build_main_agent_no_provider(self, mock_event, mock_context):
         """Test building main agent when no provider is available."""
         module = ama

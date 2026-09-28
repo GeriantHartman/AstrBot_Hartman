@@ -5,6 +5,7 @@ import astrbot.core.provider.sources.anthropic_source as anthropic_source
 import astrbot.core.provider.sources.kimi_code_source as kimi_code_source
 from astrbot.core.exceptions import EmptyModelOutputError
 from astrbot.core.provider.entities import LLMResponse
+from astrbot.core.provider.sources.prompt_post_processor import CUSTOM_USER_PROTOCOL_KEY
 
 
 class _FakeAsyncAnthropic:
@@ -93,3 +94,50 @@ def test_anthropic_empty_output_raises_empty_model_output_error():
             completion_id="msg_empty",
             stop_reason="end_turn",
         )
+
+
+def test_anthropic_payload_preserves_mid_history_system_as_user_message():
+    provider = object.__new__(anthropic_source.ProviderAnthropic)
+
+    system_prompt, messages = provider._prepare_payload(
+        [
+            {"role": "system", "content": "global-a"},
+            {"role": "system", "content": "global-b"},
+            {"role": "user", "content": "history-user"},
+            {"role": "assistant", "content": "history-assistant"},
+            {"role": "system", "content": "post-history"},
+            {"role": "user", "content": "current-user"},
+        ]
+    )
+
+    assert system_prompt == "global-a\n\nglobal-b"
+    assert messages == [
+        {"role": "user", "content": "history-user"},
+        {
+            "role": "assistant",
+            "content": [{"type": "text", "text": "history-assistant"}],
+        },
+        {"role": "user", "content": "post-history\n\ncurrent-user"},
+    ]
+
+
+def test_anthropic_payload_appends_custom_user_protocol_before_current_user():
+    provider = object.__new__(anthropic_source.ProviderAnthropic)
+
+    system_prompt, messages = provider._prepare_payload(
+        [
+            {"role": "system", "content": "global"},
+            {"role": "user", "content": "history"},
+            {
+                "role": "user",
+                "content": "protocol",
+                CUSTOM_USER_PROTOCOL_KEY: {},
+            },
+            {"role": "user", "content": "current"},
+        ]
+    )
+
+    assert system_prompt == "global"
+    assert messages == [
+        {"role": "user", "content": "history\n\nprotocol\n\ncurrent"},
+    ]

@@ -579,7 +579,7 @@ export default {
       serviceConfig: {
         session_enabled: true,
         llm_enabled: true,
-        tts_enabled: true,
+        tts_enabled: false,
         custom_name: '',
         persona_id: null,
       },
@@ -929,7 +929,7 @@ export default {
       this.serviceConfig = {
         session_enabled: svcConfig.session_enabled !== false,
         llm_enabled: svcConfig.llm_enabled !== false,
-        tts_enabled: svcConfig.tts_enabled !== false,
+        tts_enabled: svcConfig.tts_enabled === true,
         custom_name: svcConfig.custom_name || '',
         persona_id: svcConfig.persona_id || null,
       }
@@ -1292,7 +1292,7 @@ export default {
         const config = {
           session_enabled: existingConfig.session_enabled !== false,
           llm_enabled: existingConfig.llm_enabled !== false,
-          tts_enabled: existingConfig.tts_enabled !== false,
+          tts_enabled: existingConfig.tts_enabled === true,
           ...existingConfig,
         }
 
