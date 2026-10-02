@@ -104,7 +104,7 @@ from astrbot.core.utils.quoted_message_parser import (
     extract_quoted_message_images,
     extract_quoted_message_text,
 )
-from astrbot.core.utils.string_utils import normalize_and_dedupe_strings
+from astrbot.core.utils.string_utils import normalize_and_dedupe_strings, to_halfwidth
 
 
 @dataclass(slots=True)
@@ -1161,9 +1161,9 @@ async def build_main_agent(
             req.audio_urls = []
             if sel_model := event.get_extra("selected_model"):
                 req.model = sel_model
-            if config.provider_wake_prefix and not event.message_str.startswith(
-                config.provider_wake_prefix
-            ):
+            if config.provider_wake_prefix and not to_halfwidth(
+                event.message_str
+            ).startswith(to_halfwidth(config.provider_wake_prefix)):
                 return None
 
             req.prompt = event.message_str[len(config.provider_wake_prefix) :]

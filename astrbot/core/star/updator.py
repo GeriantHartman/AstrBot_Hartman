@@ -52,13 +52,43 @@ class PluginUpdator(RepoZipUpdator):
 
         return plugin_path
 
+    @staticmethod
+    def _get_wrapping_dir(namelist: list[str]) -> str:
+        """返回压缩包统一的顶层目录名（含结尾的 /），没有则返回空串。
+
+        只有所有条目都位于同一个目录条目之下时才算有顶层目录。不能直接把
+        namelist()[0] 当成目录——那样会把根目录下的普通文件（例如 .git）误判成
+        目录，进而在 listdir 时抛 NotADirectoryError。
+        """
+        dir_entries = {n.replace("\\", "/") for n in namelist}
+        tops: set[str] = set()
+        for name in dir_entries:
+            stripped = name.strip("/")
+            if not stripped or stripped.startswith("__MACOSX/"):
+                continue
+            tops.add(stripped.split("/", 1)[0])
+            if len(tops) > 1:
+                return ""
+        if len(tops) != 1:
+            return ""
+        top = tops.pop()
+        return f"{top}/" if f"{top}/" in dir_entries else ""
+
     def unzip_file(self, zip_path: str, target_dir: str) -> None:
         os.makedirs(target_dir, exist_ok=True)
-        update_dir = ""
         logger.info(f"正在解压压缩包: {zip_path}")
         with zipfile.ZipFile(zip_path, "r") as z:
-            update_dir = z.namelist()[0]
+            update_dir = self._get_wrapping_dir(z.namelist())
             z.extractall(target_dir)
+
+        if not update_dir:
+            # 压缩包里没有统一的顶层目录（例如直接打包插件目录内容），
+            # 文件已经落在 target_dir 下，不需要再上提一层。
+            try:
+                os.remove(zip_path)
+            except BaseException:
+                logger.warning(f"删除更新文件失败，可以手动删除 {zip_path}")
+            return
 
         files = os.listdir(os.path.join(target_dir, update_dir))
         for f in files:

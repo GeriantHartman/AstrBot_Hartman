@@ -202,6 +202,7 @@ async def provider_chat(
     prompt: str,
     system_prompt: str = "",
     contexts: list[dict[str, Any]] | None = None,
+    session_id: str | None = None,
 ) -> ChatResult:
     started = time.perf_counter()
     try:
@@ -209,6 +210,7 @@ async def provider_chat(
             prompt=prompt,
             system_prompt=system_prompt or None,
             contexts=contexts or [],
+            session_id=session_id,
         )
     except Exception as exc:
         return ChatResult(

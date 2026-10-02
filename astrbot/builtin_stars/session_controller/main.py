@@ -12,6 +12,7 @@ from astrbot.core.utils.session_waiter import (
     SessionWaiter,
     session_waiter,
 )
+from astrbot.core.utils.string_utils import to_halfwidth
 
 
 class Main(Star):
@@ -49,7 +50,8 @@ class Main(Star):
 
                 if (is_empty_at and p_settings.get("empty_mention_waiting", True)) or (
                     isinstance(messages[0], Comp.Plain)
-                    and messages[0].text.strip() in wake_prefix
+                    and to_halfwidth(messages[0].text.strip())
+                    in {to_halfwidth(p) for p in wake_prefix}
                 ):
                     if p_settings.get("empty_mention_waiting_need_reply", True):
                         try:

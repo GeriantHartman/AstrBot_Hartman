@@ -57,7 +57,11 @@ class JudgeClient:
         return model_family(self.spec.endpoint_model)
 
     async def chat(
-        self, system: str, user: str, history: list[dict[str, Any]] | None = None
+        self,
+        system: str,
+        user: str,
+        history: list[dict[str, Any]] | None = None,
+        session_id: str | None = None,
     ) -> ChatResult:
         if self._endpoint is not None:
             return await self._endpoint.chat(
@@ -68,12 +72,21 @@ class JudgeClient:
             self.spec.provider_id, extra_body={"temperature": self.spec.temperature}
         )
         return await provider_chat(
-            provider, prompt=user, system_prompt=system, contexts=history
+            provider,
+            prompt=user,
+            system_prompt=system,
+            contexts=history,
+            session_id=session_id,
         )
 
 
 async def _ask_with_retry(
-    client: JudgeClient, system: str, user: str, validate, max_retries: int
+    client: JudgeClient,
+    system: str,
+    user: str,
+    validate,
+    max_retries: int,
+    session_id: str | None = None,
 ):
     """Call → parse → validate; on problems, send one feedback turn and retry."""
     history: list[dict[str, Any]] = []
@@ -85,7 +98,7 @@ async def _ask_with_retry(
     problems: list[str] = []
     for _ in range(max_retries + 1):
         attempts += 1
-        res = await client.chat(system, prompt, history)
+        res = await client.chat(system, prompt, history, session_id=session_id)
         for k in usage:
             usage[k] += int(res.usage.get(k, 0) or 0)
         if res.error:
@@ -132,6 +145,7 @@ async def judge_abs(
         user,
         lambda obj: validate_abs(obj, dims, replies),
         client.spec.max_retries,
+        session_id=f"rpb-judge-abs-{client.judge_id}-{row['cell_key']}",
     )
     return {
         "cell_key": row["cell_key"],
@@ -179,6 +193,10 @@ async def judge_pair(
         user,
         lambda obj: validate_pair(obj, dims),
         client.spec.max_retries,
+        session_id=(
+            f"rpb-judge-pair-{client.judge_id}"
+            f"-{row_x['cell_key']}-{row_y['cell_key']}-{order}"
+        ),
     )
     return {
         "pair_key": f"{row_x['cell_key']}|{row_y['cell_key']}",

@@ -215,7 +215,9 @@ async def run_probe(plan: Plan, *, live_llm: bool = False) -> int:
         for pid in plan.models:
             try:
                 res = await provider_chat(
-                    await pool.get(pid), prompt="只回复两个字：收到"
+                    await pool.get(pid),
+                    prompt="只回复两个字：收到",
+                    session_id=f"rpb-probe-{pid}",
                 )
                 (c.ok if not res.error else c.bad)(
                     f"live {pid}",

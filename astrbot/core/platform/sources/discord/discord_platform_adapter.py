@@ -381,6 +381,11 @@ class DiscordPlatformAdapter(Platform):
         """收集所有指令并注册到Discord"""
         logger.info("[Discord] Collecting and registering slash commands...")
         registered_commands = []
+        # Discord 要求同一应用内斜杠指令名唯一。内置指令与扩展插件重名时
+        # （例如 builtin_commands 与 builtin_commands_extension 都定义了
+        # `provider`），整批 sync_commands 会被 400 APPLICATION_COMMANDS_DUPLICATE_NAME
+        # 拒绝，导致**所有**指令都注册不上。这里按名字去重，保留先注册者。
+        seen_commands: dict[str, str] = {}
 
         for handler_md in star_handlers_registry:
             if not star_map[handler_md.handler_module_path].activated:
@@ -393,6 +398,16 @@ class DiscordPlatformAdapter(Platform):
                     continue
 
                 cmd_name, description, cmd_filter_instance = cmd_info
+
+                if cmd_name in seen_commands:
+                    logger.warning(
+                        f"[Discord] 斜杠指令名冲突，已跳过 `{cmd_name}`："
+                        f"{handler_md.handler_module_path} 与 "
+                        f"{seen_commands[cmd_name]} 同名。"
+                        "被跳过的一方在 Discord 上不可用，请禁用其中一个插件。",
+                    )
+                    continue
+                seen_commands[cmd_name] = handler_md.handler_module_path
 
                 # 创建动态回调
                 callback = self._create_dynamic_callback(cmd_name)

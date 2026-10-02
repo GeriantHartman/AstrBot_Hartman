@@ -384,6 +384,31 @@ class MyPlugin(star.Star):
 - 同类隐患（未修，待核实）：`set_key()` 会重建 `self.client`，并发中的其他请求可能因旧 client 被回收而报 `ClientConnectionError: Connector is closed`。
 - 如果后续 AstrBot 官方升级覆盖了 `gemini_source.py`，必须重新补齐这个判断。
 
+**15. 唤醒前缀按字面比较，中文输入法打出的全角符号无法唤醒 (已修复)**
+- **文件**：`astrbot/core/pipeline/waking_check/stage.py`（唤醒检查）、`astrbot/builtin_stars/session_controller/main.py`（空 mention 的前缀归属判断）、`astrbot/core/pipeline/process_stage/method/agent_request.py`（provider 前缀去重）、`astrbot/core/astr_main_agent.py`（provider 前缀剥离）；新增 `astrbot/core/utils/string_utils.py` 的 `to_halfwidth()`
+- **状况**：唤醒检查用 `event.message_str.startswith(wake_prefix)` 做**字面**比较。这是个愚蠢的设计：中文输入法下用户顺手打出的符号默认就是全角（`～` U+FF5E、`／` U+FF0F、`！` U+FF01），而配置里的 `wake_prefix` 是 ASCII 键盘录入的半角（`~` U+007E、`/` U+002F）。码点不同，比较必然失败 → `event.stop_event()` → 整条消息被**静默丢弃**，用户侧没有任何报错。
+- **日志特征**（排查用）：`WakingCheck` 阶段跑完后直接 `pipeline 执行完毕`，耗时几毫秒，且没有任何 provider/LLM 调用；`enabled_plugins_name` 正常打印但插件 handler 全部不触发。
+- **修复措施**：`string_utils.py` 新增 `to_halfwidth()`，把全角 ASCII（U+FF01–U+FF5E）映射回半角（U+0021–U+007E），U+3000 表意空格映射为普通空格；映射是 1:1，因此仍可按**原串长度**裁剪前缀。上述 4 处前缀比较全部改为**两侧归一化后**再比较。另有兜底：`data/cmd_config.json` 的 `wake_prefix` 显式加入 `／` `～`，当核心补丁被官方升级覆盖时仍可工作（补丁生效时该条目冗余）。
+- **为什么必须兼容全角**：目标用户是中文使用者，便捷输入产出的就是全角符号。要求用户为了唤醒机器人专门切到半角，等于把核心的设计失误转嫁成用户的操作负担——中文语境下全角是默认行为，不是边缘情况。
+- 如果后续 AstrBot 官方升级覆盖了这 4 个文件之一，必须重新补齐归一化比较（`string_utils.to_halfwidth` + 4 个调用点）。验证方法：`wake_prefix` 设为 `["~"]`，发送以全角 `～` 开头的群聊消息，事件必须被唤醒且前缀被正确剥离（`～你好` → `你好`）。
+
+**16. Discord 斜杠指令重名导致整批注册失败 (已修复)**
+- **文件**：`astrbot/core/platform/sources/discord/discord_platform_adapter.py`（`_collect_and_register_commands`）
+- **状况**：注册循环遍历 `star_handlers_registry`，对每个 `CommandFilter` 都调一次 `add_application_command`，**不检查重名**。Discord 要求同一应用内斜杠指令名唯一，只要有两个 handler 同名，`sync_commands()` 就会返回 `400 APPLICATION_COMMANDS_DUPLICATE_NAME`，而这是**批量**注册——**整批指令全部注册不上**，不只是冲突的那一条。
+- **实际触发场景**：AstrBot 内置命令与官方扩展插件 `builtin_commands_extension` **都定义了 `provider`**（`astrbot/builtin_stars/builtin_commands/main.py:51` 与 `data/plugins/builtin_commands_extension/main.py:83`）。两者同时启用时，启动日志出现 `on_ready_once_callback err: 400 Bad Request ... In 27: Application command names must be unique`，Discord 上一条斜杠指令都没有，但机器人本体仍能收消息（异常被 discord.py 记 ERRO 后吞掉，不终止进程）。
+- **修复措施**：`_collect_and_register_commands` 增加 `seen_commands` 字典按 `cmd_name` 去重，保留先遍历到的一方，跳过的记 `warning` 并打印冲突双方的 `handler_module_path`。指令名已被 `_extract_command_info` 校验为 `^[a-z0-9_-]{1,32}$`（不含大写），故直接以原名作键即可。
+- **注意（未修的上游打包问题）**：这只是让冲突不再致命，并未解决源头——核心与官方扩展重复定义了同名指令。去重保留的是遍历顺序在前的一方（实践中是核心内置的那条，其 `provider` 功能弱于扩展版）。若要拿到扩展版的完整 `provider`，需**禁用其中一个插件**，而不是依赖去重。
+- 如果后续 AstrBot 官方升级覆盖了 `discord_platform_adapter.py`，必须重新补齐这个去重，否则重名指令会再次导致 Discord 侧全量注册失败。
+
+**17. 上传插件 zip 无顶层目录时解压崩溃 `NotADirectoryError` (已修复)**
+- **文件**：`astrbot/core/star/updator.py`（`PluginUpdator.unzip_file`，新增 `_get_wrapping_dir`）
+- **状况**：`unzip_file` 无条件把 `z.namelist()[0]` 当成压缩包的**顶层目录**，随后 `os.listdir(os.path.join(target_dir, update_dir))`。若上传的 zip 是**直接打包插件目录内容**（没有 `repo-main/` 这种统一外层目录），`namelist()[0]` 就是根目录下的第一个条目——常常是 `.git`（worktree/submodule 的 gitfile，一个 54 字节的**普通文件**）——`listdir` 一个文件直接抛 `NotADirectoryError: [WinError 267] 目录名称无效`。
+- **日志特征**（排查用）：`star.star_manager:1812 安装插件 plugin_upload_xxx 失败` + traceback 落在 `updator.py` 的 `os.listdir(...)` 行，路径以 `\\.git` 或其它根级文件名结尾。失败目录会被 `_track_failed_install_dir` 保留，后续启动扫描时报 `插件 plugin_upload_xxx 未找到 main.py` 噪声。
+- **修复措施**：新增 `_get_wrapping_dir(namelist)`，只有**所有条目都位于同一个目录条目之下**时才认定存在顶层目录，返回该目录名（含结尾 `/`）；否则返回空串，`unzip_file` 直接解压到 `target_dir` 并跳过「上提一层」的搬运。注意两个坑：(1) 判定用的集合**不能 strip 掉结尾的 `/`**，否则 `"repo-master/" in entries` 恒为假，会让**所有** GitHub 归档 zip 失去展平——仓库安装会把 `repo-main/` 原样留在插件目录里导致 `metadata.yaml` 找不到；(2) `__MACOSX/` 条目要排除，否则 macOS 压缩包会被误判成两个顶层目录。
+- **验证方法**：① 直接打包插件目录内容（含 `.git` 文件）→ 安装成功，文件落在插件根；② GitHub 归档 zip（`codeload.github.com/<owner>/<repo>/zip/refs/heads/main`，首个条目是 `repo-main/` 目录条目）→ 仍然正确展平，`README.md`/`metadata.yaml` 在根；③ 只有单个根文件的 zip、含 `__MACOSX` 的 macOS zip 均不崩。
+- **注意（未修，同源隐患）**：`astrbot/core/zip_updator.py:234` 的 `RepoZipUpdator.unzip_file` 是**同一份拷贝**，逻辑完全一样。它只被 `AstrBotUpdator`（自更新，解 GitHub release zip，必有顶层目录）使用，故未改动；若将来该路径也接用户上传的 zip，必须补同样的判定。
+- 如果后续 AstrBot 官方升级覆盖了 `updator.py`，必须重新补齐 `_get_wrapping_dir` 与 `unzip_file` 的空顶层分支。
+
 ## Skill routing
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill
@@ -404,6 +429,31 @@ Key routing rules:
 - Save progress, checkpoint, resume → invoke checkpoint
 - Code quality, health check → invoke health
 - RP 跑分、模型 RP 能力对比、验角色卡、角色卡规模排名（bare / YAML / skill 卡）、插件 4.0 vs 5.0 回归 → invoke rp-bench
+
+### Agent skills 双份镜像约定
+
+`.codex/skills/` 与 `.claude/skills/` 是两个**独立**的技能加载位置。同一个 skill 必须**两侧各存一份**且内容字节一致——只写一份会让另一侧读不到，或读到过期版本。
+
+**约定镜像的 skill**（改动 `SKILL.md`、`references/`、`scripts/` 任一文件后，必须在同一次改动中同步另一侧并校验）：
+
+| skill | Codex 侧 | Claude 侧 |
+|---|---|---|
+| 角色扮演跑分 | `.codex/skills/rp-bench/` | `.claude/skills/rp-bench/` |
+| RPG 审计账本 | `.codex/skills/rpg-ledger-audit/` | `.claude/skills/rpg-ledger-audit/` |
+| RPG 插件架构 | `.codex/skills/rpg-plugin-architecture/` | `.claude/skills/rpg-plugin-architecture/` |
+| Art 审计账本 | `.codex/skills/art-ledger-audit/` | `.claude/skills/art-ledger-audit/` |
+
+**暂未镜像**（目前只在 `.codex/skills/` 下）：`astrbot-plugin-developer`、`new-elysium-cardroom-developer`、`rpg-canonical-character-converter`、`rpg-tool-analysis`。若要纳入镜像，把它加进上表。
+
+同步与校验（从仓库根运行）：
+
+```bash
+cp -r .codex/skills/<name> .claude/skills/<name>
+rm -rf .claude/skills/<name>/__pycache__ .claude/skills/<name>/scripts/__pycache__
+diff -rq --exclude=__pycache__ .codex/skills/<name> .claude/skills/<name>   # 必须无输出
+```
+
+新增 skill 时两侧都要建，并更新上表。所有 skill 文件必须 UTF-8 无 BOM。
 
 ### RP Bench（角色扮演跑分）
 

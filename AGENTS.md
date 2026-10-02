@@ -32,8 +32,15 @@ Runs on `http://localhost:3000` by default.
    - Runtime: `data/plugins/astrbot_plugin_agentic_rpg/...`
    - Source plugin: `plugins/astrbot_plugin_agentic_RPG/...`
    Confirm matching hashes before reporting completion.
-9. When changing Agentic RPG plugin functionality, flow order, LLM tool topology, prompt/chat-template injection points, preset `map_guidance`, story hook / foreshadowing storage or injection behavior, 4.0 contract pipeline behavior, audit ledger views, guidance overlay hierarchy, or major feature responsibilities, update `.codex/skills/rpg-plugin-architecture/SKILL.md` in the same change. Keep the skill concise, validate it, and save it as UTF-8 without BOM.
+9. When changing Agentic RPG plugin functionality, flow order, LLM tool topology, prompt/chat-template injection points, preset `map_guidance`, story hook / foreshadowing storage or injection behavior, 4.0 contract pipeline behavior, audit ledger views, guidance overlay hierarchy, or major feature responsibilities, update `.codex/skills/rpg-plugin-architecture/SKILL.md` **and its mirror** `.claude/skills/rpg-plugin-architecture/SKILL.md` in the same change. Keep the skill concise, validate it, and save it as UTF-8 without BOM.
 10. For Agentic RPG, code may only handle deterministic events such as tool calls, state writes, config branches, audit records, and template assembly. Do not add code-level regexes, keyword gates, Verifier rules, or hard constraints to judge non-deterministic narrative quality. Put those fixes in Router rules, prompts, style skills, guidance, or audit documentation instead.
+11. Agent skills live in two **independent** locations and must be mirrored: `.codex/skills/<name>/` and `.claude/skills/<name>/`. A skill present on only one side is invisible (or stale) on the other. The mirrored set is `rp-bench`, `rpg-ledger-audit`, `rpg-plugin-architecture`, `art-ledger-audit` — see the maintenance table in `CLAUDE.md` under "Agent skills 双份镜像约定". After changing any file in one copy (`SKILL.md`, `references/`, `scripts/`, `agents/`), copy it to the other and verify:
+    ```
+    cp -r .codex/skills/<name> .claude/skills/<name>
+    rm -rf .claude/skills/<name>/__pycache__ .claude/skills/<name>/scripts/__pycache__
+    diff -rq --exclude=__pycache__ .codex/skills/<name> .claude/skills/<name>   # must print nothing
+    ```
+    New skills must be created in both locations, and the table in `CLAUDE.md` updated.
 
 ## PR instructions
 

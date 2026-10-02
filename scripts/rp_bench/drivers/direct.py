@@ -55,6 +55,9 @@ class DirectChatDriver:
         started = now_utc8().isoformat()
         provider = await self.pool.get(cell.model)
         system_prompt, prompt_meta = await self.builder(cell)
+        # Stable per-session id: some endpoints (OpenCode Go) require a session
+        # header on every request, and production always passes one.
+        session_id = f"rpb-{cell.key}"
 
         history: list[dict[str, Any]] = []
         turns: list[TurnRecord] = []
@@ -66,7 +69,11 @@ class DirectChatDriver:
             result = None
             for _ in range(self.max_retries + 1):
                 result = await provider_chat(
-                    provider, prompt=sent, system_prompt=system_prompt, contexts=history
+                    provider,
+                    prompt=sent,
+                    system_prompt=system_prompt,
+                    contexts=history,
+                    session_id=session_id,
                 )
                 if not result.error:
                     break

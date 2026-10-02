@@ -10,6 +10,7 @@ from astrbot.core.star.filter.permission import PermissionTypeFilter
 from astrbot.core.star.session_plugin_manager import SessionPluginManager
 from astrbot.core.star.star import star_map
 from astrbot.core.star.star_handler import EventType, star_handlers_registry
+from astrbot.core.utils.string_utils import to_halfwidth
 
 from ..context import PipelineContext
 from ..stage import Stage, register_stage
@@ -103,8 +104,12 @@ class WakingCheckStage(Stage):
         wake_prefixes = self.ctx.astrbot_config["wake_prefix"]
         messages = event.get_messages()
         is_wake = False
+        # 中文输入法默认输出全角符号（`～` U+FF5E），配置里的唤醒前缀是半角
+        # `~` U+007E，直接字面比较必然失败，用户自然输入的指令会被静默丢弃。
+        # 两侧统一归一化为半角后再比较；映射是 1:1，故仍按原串长度裁剪前缀。
+        normalized_message = to_halfwidth(event.message_str)
         for wake_prefix in wake_prefixes:
-            if event.message_str.startswith(wake_prefix):
+            if normalized_message.startswith(to_halfwidth(wake_prefix)):
                 if (
                     not event.is_private_chat()
                     and isinstance(messages[0], At)

@@ -127,8 +127,8 @@ class _ScriptedJudge:
         self.spec = JudgeSpec(provider_id="fake/judge", max_retries=1)
         self.judge_id = "fake/judge"
 
-    async def chat(self, system, user, history=None):
-        self.calls.append((system, user, list(history or [])))
+    async def chat(self, system, user, history=None, session_id=None):
+        self.calls.append((system, user, list(history or []), session_id))
         return ChatResult(text=self.outputs.pop(0), usage={"input": 100, "output": 10})
 
 
