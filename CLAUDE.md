@@ -289,6 +289,10 @@ class MyPlugin(star.Star):
 
 ## Known Core Provider Bugs & Fixes
 
+> **基底**：本仓库已合并 upstream `95e98b8ae`（v4.28.1 之后 30 个 commit）。
+> 下面每条都标注了合并后修复实际所在的文件；AstrBot 官方升级覆盖这些文件时，
+> 必须逐条重新补齐。验证方式：`git diff upstream/master HEAD -- <文件>`。
+
 **1. Rerank Providers (Bailian, VLLM) "无效果" Bug (已修复)**  
 - **原因**：部分模型 API (如 `gte-rerank-v2` / `bge-reranker-v2-m3`) 不返回标准的 `index` 字段，或者将其包含在 `document_index` 或 `document.index` 中。底层代码在找不到 `index` 时，会使用当前遍历的序号 `idx` 临时回退。这会导致：新出炉的高分数会被强行套用原本在向量数据库里排第一的文档的顺序，使得排序结果与最初 FAISS 给的一模一样，导致重定向无效。同时对于 `vllm_rerank_source.py`，存在硬编码 `/v1/rerank` URL导致 404 问题。
 - **修复措施**：在 `_parse_results`（Bailian）和 `rerank`（VLLM）中加入了深层键值探测与日志警告系统，并增强了 URL 末尾拼接验证，如果后续 AstrBot 官方升级覆盖了 `bailian_rerank_source.py` 以及 `vllm_rerank_source.py` 必须重新补齐这一容错解析算法。
@@ -304,7 +308,8 @@ class MyPlugin(star.Star):
 - **原因**：当前 AstrBot 核心引擎关于 XAI/Grok 的底层驱动可能由于 XAI 后来更换了终点适配标准或内部封装组件过期而无法使用。目前在 `core/provider/sources` 下甚至查不到正确完整的或兼容最新接口协议的 `grok_source.py`/`xai_source.py` 以进行无缝的对话链传输。需完全重新适配或排查其 API 定义。
 
 **4. 空 @ 消息在关闭等待后仍消耗 token (已修复)**
-- **文件**：`astrbot/builtin_stars/session_controller/main.py`
+- **文件**：`astrbot/builtin_stars/astrbot/main.py`（`handle_empty_mention`）。
+  上游 v4.24.1 删除了 `session_controller`，该逻辑搬到了这里，修复已随之迁移。
 - **状况**：`empty_mention_waiting` 设为 `false` 后，空 @ 消息不再触发等待，但事件没有被 `stop_event()` 拦截，继续传播到主 LLM 管道，导致空消息仍然消耗 token。
 - **修复措施**：在 `handle_empty_mention` 中，当 `empty_mention_waiting=false` 且检测到空 @ 时，立即调用 `event.stop_event()` 并 `return`，阻止事件泄漏到主 LLM handler。如果后续 AstrBot 官方升级覆盖了 `session_controller/main.py`，必须检查此修复是否被保留。
 
@@ -313,10 +318,10 @@ class MyPlugin(star.Star):
 - **状况**：`_handle_api_error` 中的字符串匹配 `"tool" in str(e).lower() and "support" in str(e).lower()` 会误中 `tool_choice` 相关的错误（如 DeepSeek 返回 `"does not support this tool_choice"`），将其错误判断为"模型不支持工具调用"，导致所有 tools 被移除后重试。
 - **修复措施**：将 `"tool"` 匹配改为 `re.search(r"\btool\b", ...)` 词边界匹配，避免 `tool_choice`、`tool_calls` 中的 "tool" 被误命中。如果后续 AstrBot 官方升级覆盖了 `openai_source.py`，必须检查此修复是否被保留。
 
-**6. skills_like 模式 re-query 与思考模式不兼容 (已修复)**
+**6. skills_like 模式 re-query 与思考模式不兼容 (上游已修复，本地版本已丢弃)**
 - **文件**：`astrbot/core/agent/runners/tool_loop_agent_runner.py`
 - **状况**：`skills_like` 模式的二次询问（re-query）使用 `tool_choice="required"`，但 `deepseek-reasoner` 等思考模式模型不支持此值，导致 400 错误。
-- **修复措施**：(1) 当第一次响应已包含完整参数时，跳过 re-query；(2) 当响应包含 `reasoning_content`（思考模式）时，re-query 降级使用 `tool_choice="auto"`。如果后续 AstrBot 官方升级覆盖了 `tool_loop_agent_runner.py`，必须检查此修复是否被保留。
+- **现状**：上游 `6b36e1aba`（v4.24.1）在 `_resolve_tool_exec` 中移除了 `tool_choice="required"`，问题已不存在。合并时采用上游实现，不再维护本地的「跳过 re-query / 降级 auto」分支。
 
 **7. Provider 设置不同步到多 Config Profile (已修复)**
 - **文件**：`astrbot/core/provider/manager.py`
@@ -333,7 +338,10 @@ class MyPlugin(star.Star):
   - `exceptions.py` 新增 `LLMContentFilteredError`（内容过滤，不可同 provider 重试）和 `LLMTransientError`（瞬时错误，可重试）。
   - `gemini_source.py` 的 `_process_content_parts` 将 PROHIBITED_CONTENT/SAFETY/BLOCKLIST/SPII/IMAGE_SAFETY 改 raise `LLMContentFilteredError`；空 candidates 改 raise `LLMTransientError`。主循环（`text_chat` + `text_chat_stream`）对 `LLMTransientError`、`EmptyModelOutputError` 及 APIError 500/502/503/504 做 exp backoff（1s、2s、4s... 上限 30s），`LLMContentFilteredError` 直接上抛让 plugin 做 fallback。`retry_max` + `retry_backoff_base` 改读 `provider_config`。
   - `openai_source.py` 的 `_handle_api_error` 对 502/503/504/timeout/connection error 增加 exp backoff + return tuple 让主循环重试；同时在最终失败时若是瞬时错误则包装成 `LLMTransientError` 抛出。`max_retries` 改读 `provider_config.get("retry_max", 10)`。主循环对 `LLMContentFilteredError` 不拦截，直接上抛。
-- 如果后续 AstrBot 官方升级覆盖了这三个文件，必须重新补齐类型化异常 + exp backoff 逻辑。
+- **合并后的现状（v4.28.1 基底）**：
+  - **重试与退避已交还上游**。上游 `request_retry.py`（#8893，v4.26.0）统一处理 502/503/504/timeout/connection 的指数退避，本地不再维护第二套退避逻辑。
+  - **仍需保留的是类型化异常**：`astrbot/core/exceptions.py` 的 `LLMContentFilteredError` / `LLMTransientError`；`gemini_source.py` 对安全拦截抛前者、对空 candidates 抛后者；`tool_loop_agent_runner.py` 把 `LLMTransientError` 与 `EmptyModelOutputError` 一起纳入重试，而 `LLMContentFilteredError` 故意不重试，直接落到换 provider 的分支。
+  - RPG 插件的 `handlers/llm_retry.py` 依赖这两个异常类，删掉会导致插件导入失败。
 
 **9. DeepSeek V4 思考模式 `reasoning_content` 强制字段注入缺失 (已修复)**
 - **文件**：`astrbot/core/provider/sources/openai_source.py`（`_finally_convert_payload`）
@@ -351,7 +359,12 @@ class MyPlugin(star.Star):
 **10. 插件注册的静态页面需要 JWT 豁免才能直接打开 (已修复)**
 - **文件**：`astrbot/dashboard/server.py`（`allowed_endpoints` 列表）
 - **状况**：`context.register_web_api(route="/rpg-chat-template-editor", methods=["GET"], ...)` 注册的插件自定义页面最终由 `/api/plug/<path>` 统一分发。`auth_middleware` 对任何 `/api/*` 请求强制 JWT 校验，用户直接在浏览器打开 `http://localhost:6185/api/plug/rpg-chat-template-editor` 会返回 `{"status":"error","message":"未授权","data":null}` 401。夹在 AstrBot 主面板 iframe 里、或手动在浏览器里访问，都会失败。
-- **修复措施**：把插件注册的 **只读静态页面** 路径加入 `allowed_endpoints` 白名单，跳过 JWT。数据读写接口（例如 `/api/plug/rpg-chat-template` GET/POST）仍然需要 JWT，由页面 JS 从 `localStorage.token` 读出后以 `Authorization: Bearer` 头携带。目前已加入：`/api/plug/rpg-chat-template-editor`（Agentic RPG 的 Chat Template 可视化编辑器，历史名 rpg-preset-editor）。未来其它插件若有类似需求，在同一数组里追加。
+- **修复措施**：把插件注册的 **只读静态页面** 路径加入白名单，跳过 JWT。
+- **v4.28 基底需要改两处，只改一处无效**：上游把后台迁到 FastAPI 后，`/api/plug/{path}` 这条路由自身还有一层 `Depends(require_dashboard_user)`，它在 `server.py` 的中间件之后运行。中间件放行了，这一层照样 401。
+  - 唯一来源：`astrbot/dashboard/api/auth.py` 的 `PUBLIC_PLUGIN_ENDPOINT_PREFIXES`，新增路径改这里。
+  - `astrbot/dashboard/server.py` 的 `allowed_endpoint_prefixes` 展开引用它。
+  - `astrbot/dashboard/api/plugins.py` 的 `dashboard_plugin_extension_route` 用 `optional_dashboard_user` 而不是 `require_dashboard_user`。
+- 验证：`uv run python scripts/research/check_plugin_web_routes.py`（需先启动 AstrBot）。编辑器页无 JWT 应 200 text/html，数据接口无 JWT 应 401、带 JWT 应 200 JSON。数据读写接口（例如 `/api/plug/rpg-chat-template` GET/POST）仍然需要 JWT，由页面 JS 从 `localStorage.token` 读出后以 `Authorization: Bearer` 头携带。目前已加入：`/api/plug/rpg-chat-template-editor`（Agentic RPG 的 Chat Template 可视化编辑器，历史名 rpg-preset-editor）。未来其它插件若有类似需求，在同一数组里追加。
 - 如果后续 AstrBot 官方升级覆盖了 `server.py`，必须重新补齐这些白名单项，否则插件页面会在浏览器里失去访问。
 
 **11. `_save_to_history` 对 system role 漏识别 `_no_save` (已修复)**
@@ -365,7 +378,55 @@ class MyPlugin(star.Star):
 - **文件**：`astrbot/core/agent/message.py` + `astrbot/core/agent/context/truncator.py` + `astrbot/core/provider/sources/openai_source.py` + `astrbot/core/provider/sources/gemini_source.py`
 - **状况**：`ContextTruncator.truncate_by_turns` 的 `_split_system_rest` 把 messages 粗分成 "system（全保留）" + "non-system（按 turn 截取最后 N 对）"。这对纯 AstrBot 场景够用，但**对使用 chat_template 结构的插件破产**——插件在 contexts 头部注入 few-shot（role=user/assistant）时，这些消息会作为"最老的 non-system"首批被截掉。同时插件在 contexts 尾部注入 depth-inject（role=system）会被无条件保留（配合 bug 11 导致堆积）。
 - **修复措施**：引入 `_no_truncate` PrivateAttr（`message.py:199` 附近，同时 `bind_checkpoint_messages` 搬运 dict key→PrivateAttr）。插件在注入 message dict 时设置 `"_no_truncate": True`。`truncator._is_pinned(msg)` 返回 `msg.role == "system" or msg._no_truncate`；`truncate_by_turns` 只对 `not _is_pinned` 的 user/assistant 做 `-N*2` 截断，并按原始 index 顺序重建（pinned 保留原位置，truncatable 填充保留项）。`openai_source.py` / `gemini_source.py` 发送前 `del part["_no_truncate"]` 避免 LLM API 收到未知字段。
-- 如果后续 AstrBot 官方升级覆盖了这 4 个文件之一，必须重新补齐（`_no_truncate` PrivateAttr 定义、model_validate 搬运、`_is_pinned` 三-pool 分类、sources 的 del 字段）。验证方法：在 RPG 插件里打开一个长 session（> `keep_most_recent_turns`），对比第 2 轮和第 20 轮的 OpenAI Request payload，few-shot 段字节必须完全一致。
+- 如果后续 AstrBot 官方升级覆盖了这些文件之一，必须重新补齐（`_no_truncate` PrivateAttr 定义、model_validate 搬运、`_is_pinned` 三-pool 分类、sources 的 del 字段）。验证方法：在 RPG 插件里打开一个长 session（> `keep_most_recent_turns`），对比第 2 轮和第 20 轮的 OpenAI Request payload，few-shot 段字节必须完全一致。
+- **合并后需要删除该字段的 provider 已扩到 4 个**：`openai_source.py`、`gemini_source.py`、`anthropic_source.py`、`openai_responses_source.py`（上游新增，v4.27.1）。新增 provider source 时必须同步。
+- **已知缺口（未修）**：上游的 LLM 摘要压缩走 `round_utils.split_into_rounds` 按轮次切分，不认 `_no_truncate`，被标记的 few-shot 仍会被摘要掉。只有 `context_limit_reached_strategy` 设成 LLM 压缩时才会触发；按轮次截断的路径不受影响。
+
+**13. Discord 超过 2000 字被直接截断 (已修复)**
+- **文件**：`astrbot/core/platform/sources/discord/discord_platform_event.py`（`_split_message`，由 `_parse_to_discord` 调用）
+- **状况**：上游实现是 `content = content[:2000]`，超出部分**直接丢弃**，只打一条 warning 日志。聊天里看不出任何异常，表现为角色把话说了一半。RPG 叙事单条常有 1000-3000 字，这条几乎必然触发。
+- **修复措施**：`_split_message` 按段落 → 行 → 句子逐级切分，发成多条连续消息。
+- **AstrBot 自带的分段帮不上忙**：`result_decorate/stage.py` 只对 150 字以下的消息分段，长消息原样交给适配器后被截断。
+- 官方升级覆盖该文件时必须重新补齐。验证方法：让 bot 发一条 3000 字以上的回复，Discord 上应出现 2-3 条连续消息，且结尾完整。
+
+**14. 工具调用前的中间文本会变成额外消息 (本地特性)**
+- **文件**：`astrbot/core/agent/runners/tool_loop_agent_runner.py`（`_pending_text_buffer`、`discard_tool_call_briefings`）
+- **状况**：模型在调用工具时顺带说的话（「让我查一下…」）会被上游当成一条正式回复立即发出，一次用户输入产生多条消息。沉浸式 RP 场景里这等于把后台过程摊给玩家看。
+- **本地行为**：带 `tool_calls` 的中间文本先进缓冲区，在最终回复（无 tool_calls）时合并成一条发出；`discard_tool_call_briefings=true` 时直接丢弃。**「玩家只看到最终正文」依赖这个开关。**
+- **需要同时满足的配置**：`agent_runner.config.misc.discard_tool_call_briefings=true`、`provider_settings.show_tool_use_status=false`、`show_tool_call_result=false`、`display_reasoning_text=false`、`streaming_response=false`。
+- **skills_like 分支**：re-query 的 fallback 路径会提前 return，缓冲区必须在那里单独 flush，否则中间文本被静默吞掉（默认 `discard=false` 时属于丢内容的 bug）。
+- 相关本地 misc 配置项：`tool_calls_history_mode`、`dynamic_tool_reduction`。三者都已按上游 #9821（v4.28.0）的新结构接入 `agent_runner.config.misc`，并在 `_migrate_agent_runner_config` 中随旧配置一起迁移（见 `tests/unit/test_agent_runner_config.py`）。
+- `InternalAgentSubStage` 为这三项声明了类级默认值，保证不经 `initialize()` 的调用方（测试等）也能用 `_save_to_history`。
+
+**15. CLAUDE.md 未记录但同样改过核心的本地改动**
+升级或重新打补丁时同样要覆盖：
+- `astrbot/core/provider/sources/prompt_post_processor.py`（本地新增文件）：openai / gemini / anthropic 三个 provider 都依赖它。其中 `split_leading_system_messages` 会把开头连续的 system 消息合并成一段文本；`anthropic_source._prepare_payload` 对「单条 system + list 内容」做了例外，原样透传结构化 system，避免丢掉逐块的 `cache_control`。
+- `compress_old_turns`（`astrbot/core/agent/context/truncator.py` + `manager.py`）：只压缩旧轮次，提高提示词缓存命中率。
+- `tool_schema_overhead`（`manager.py` + `token_counter.py` + runner）：把 tools schema 的 token 计入上下文窗口。注意上游测试里的假 `process()` 不接受这个关键字。
+- QQ 长文本切分、读历史容忍 BOM（`json_utils.json_loads_no_bom`）、工具定义按名字排序、`/stop` 硬中止、TTS 默认关闭。
+- `openai_source.py`：内容为空但 `reasoning_content` 非空时，把 reasoning 换进 content，避免空回复。这会让「整段都是 thinking 块」的响应产出非空正文，与上游测试预期相反（本地已调整该用例）。
+- **已知失效的本地功能（未修）**：`dynamic_tool_reduction` 算出了精简后的工具列表，但 `_query`/`_query_stream` 实际仍发送完整列表，该开关从未真正生效。
+
+## 旧 RPG 插件在 v4.28 基底上的兼容性
+
+上线时新旧插件共存，所以旧插件必须能在新基底上跑。已验证：
+
+- 插件加载正常（15 prompts / 9 styles / 20 canonical characters / 42 tools），`initialize()` 无异常。
+- 77 处 `from astrbot ...` 导入全部解析，`llm_generate` / `tool_loop_agent` / `register_web_api` / `kb_manager.retrieve` / `conversation_manager` 的调用参数全部匹配当前签名。
+- Chat Template 编辑器页与数据接口在 FastAPI 上行为正确（见上面第 10 条）。插件里的 `quart.jsonify` 走上游兼容层，可用。
+- 插件测试 54 项全部通过。
+
+需要插件侧配合的改动（已在插件分支 `compat/astrbot-4.28` 上修复）：
+
+- `_prepare_native_request` 在 v4.28 变成了协程。`handlers/hooks.py` 的 `_build_provider_payload_preview` 原先同步调用它，会拿到未 await 的 coroutine，审计里的 provider payload 预览静默退化成 `preview_error`。修复方式是把该方法与 `_build_narrative_audit_view` 改成 async，并用 `inspect.isawaitable` 同时兼容新旧 core。
+
+排查脚本（都在 `scripts/research/`）：
+
+- `check_plugin_api_compat.py` — 静态检查插件导入的 astrbot API 是否都还在。
+- `check_plugin_call_sites.py` — 检查插件传给核心 API 的关键字参数是否仍被接受。
+- `check_plugin_web_routes.py` — 对运行中的实例检查插件 web 路由的鉴权行为。
+
+**未验证**：完整的一轮 RP 对话（Router 工具循环 → Director → Narrator → 记忆归档）需要配置真实 provider，本次没有跑。上线前请在测试 session 里走一轮完整对话。
 
 **13. OpenCode Go 强制要求 `x-opencode-session` 会话头 + 专属 UA (已修复)**
 - **文件**：`astrbot/core/provider/sources/openai_source.py`
@@ -385,7 +446,7 @@ class MyPlugin(star.Star):
 - 如果后续 AstrBot 官方升级覆盖了 `gemini_source.py`，必须重新补齐这个判断。
 
 **15. 唤醒前缀按字面比较，中文输入法打出的全角符号无法唤醒 (已修复)**
-- **文件**：`astrbot/core/pipeline/waking_check/stage.py`（唤醒检查）、`astrbot/builtin_stars/session_controller/main.py`（空 mention 的前缀归属判断）、`astrbot/core/pipeline/process_stage/method/agent_request.py`（provider 前缀去重）、`astrbot/core/astr_main_agent.py`（provider 前缀剥离）；新增 `astrbot/core/utils/string_utils.py` 的 `to_halfwidth()`
+- **文件**：`astrbot/core/pipeline/waking_check/stage.py`（唤醒检查）、`astrbot/builtin_stars/astrbot/main.py`（空 mention 的前缀归属判断）、`astrbot/core/pipeline/process_stage/method/agent_request.py`（provider 前缀去重）、`astrbot/core/astr_main_agent.py`（provider 前缀剥离）；新增 `astrbot/core/utils/string_utils.py` 的 `to_halfwidth()`
 - **状况**：唤醒检查用 `event.message_str.startswith(wake_prefix)` 做**字面**比较。这是个愚蠢的设计：中文输入法下用户顺手打出的符号默认就是全角（`～` U+FF5E、`／` U+FF0F、`！` U+FF01），而配置里的 `wake_prefix` 是 ASCII 键盘录入的半角（`~` U+007E、`/` U+002F）。码点不同，比较必然失败 → `event.stop_event()` → 整条消息被**静默丢弃**，用户侧没有任何报错。
 - **日志特征**（排查用）：`WakingCheck` 阶段跑完后直接 `pipeline 执行完毕`，耗时几毫秒，且没有任何 provider/LLM 调用；`enabled_plugins_name` 正常打印但插件 handler 全部不触发。
 - **修复措施**：`string_utils.py` 新增 `to_halfwidth()`，把全角 ASCII（U+FF01–U+FF5E）映射回半角（U+0021–U+007E），U+3000 表意空格映射为普通空格；映射是 1:1，因此仍可按**原串长度**裁剪前缀。上述 4 处前缀比较全部改为**两侧归一化后**再比较。另有兜底：`data/cmd_config.json` 的 `wake_prefix` 显式加入 `／` `～`，当核心补丁被官方升级覆盖时仍可工作（补丁生效时该条目冗余）。
@@ -400,14 +461,10 @@ class MyPlugin(star.Star):
 - **注意（未修的上游打包问题）**：这只是让冲突不再致命，并未解决源头——核心与官方扩展重复定义了同名指令。去重保留的是遍历顺序在前的一方（实践中是核心内置的那条，其 `provider` 功能弱于扩展版）。若要拿到扩展版的完整 `provider`，需**禁用其中一个插件**，而不是依赖去重。
 - 如果后续 AstrBot 官方升级覆盖了 `discord_platform_adapter.py`，必须重新补齐这个去重，否则重名指令会再次导致 Discord 侧全量注册失败。
 
-**17. 上传插件 zip 无顶层目录时解压崩溃 `NotADirectoryError` (已修复)**
-- **文件**：`astrbot/core/star/updator.py`（`PluginUpdator.unzip_file`，新增 `_get_wrapping_dir`）
-- **状况**：`unzip_file` 无条件把 `z.namelist()[0]` 当成压缩包的**顶层目录**，随后 `os.listdir(os.path.join(target_dir, update_dir))`。若上传的 zip 是**直接打包插件目录内容**（没有 `repo-main/` 这种统一外层目录），`namelist()[0]` 就是根目录下的第一个条目——常常是 `.git`（worktree/submodule 的 gitfile，一个 54 字节的**普通文件**）——`listdir` 一个文件直接抛 `NotADirectoryError: [WinError 267] 目录名称无效`。
-- **日志特征**（排查用）：`star.star_manager:1812 安装插件 plugin_upload_xxx 失败` + traceback 落在 `updator.py` 的 `os.listdir(...)` 行，路径以 `\\.git` 或其它根级文件名结尾。失败目录会被 `_track_failed_install_dir` 保留，后续启动扫描时报 `插件 plugin_upload_xxx 未找到 main.py` 噪声。
-- **修复措施**：新增 `_get_wrapping_dir(namelist)`，只有**所有条目都位于同一个目录条目之下**时才认定存在顶层目录，返回该目录名（含结尾 `/`）；否则返回空串，`unzip_file` 直接解压到 `target_dir` 并跳过「上提一层」的搬运。注意两个坑：(1) 判定用的集合**不能 strip 掉结尾的 `/`**，否则 `"repo-master/" in entries` 恒为假，会让**所有** GitHub 归档 zip 失去展平——仓库安装会把 `repo-main/` 原样留在插件目录里导致 `metadata.yaml` 找不到；(2) `__MACOSX/` 条目要排除，否则 macOS 压缩包会被误判成两个顶层目录。
-- **验证方法**：① 直接打包插件目录内容（含 `.git` 文件）→ 安装成功，文件落在插件根；② GitHub 归档 zip（`codeload.github.com/<owner>/<repo>/zip/refs/heads/main`，首个条目是 `repo-main/` 目录条目）→ 仍然正确展平，`README.md`/`metadata.yaml` 在根；③ 只有单个根文件的 zip、含 `__MACOSX` 的 macOS zip 均不崩。
-- **注意（未修，同源隐患）**：`astrbot/core/zip_updator.py:234` 的 `RepoZipUpdator.unzip_file` 是**同一份拷贝**，逻辑完全一样。它只被 `AstrBotUpdator`（自更新，解 GitHub release zip，必有顶层目录）使用，故未改动；若将来该路径也接用户上传的 zip，必须补同样的判定。
-- 如果后续 AstrBot 官方升级覆盖了 `updator.py`，必须重新补齐 `_get_wrapping_dir` 与 `unzip_file` 的空顶层分支。
+**17. 上传插件 zip 无顶层目录时解压崩溃 (4.28 基底已覆盖修复)**
+- **文件**：`astrbot/core/star/updater.py` 的 `_extract_plugin_archive`，以及 `astrbot/core/zip_updater.py` 的 `_resolve_archive_root_dir` / `_finalize_extracted_archive`。
+- 4.28 已将原 `updator.py` 模块重命名为 `updater.py`，归档根目录按目录条目与共同父目录解析。根级普通文件使根目录为空，直接解压，不再对 `.git` 文件执行 `listdir`。
+- 合并时删除旧模块，使用新实现；验证带 `.git` 的平铺插件归档、GitHub 单顶层归档及单根文件归档，插件安装还需合法的 `metadata.yaml`。
 
 ## Skill routing
 

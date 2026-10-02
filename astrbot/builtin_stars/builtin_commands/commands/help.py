@@ -3,8 +3,8 @@ import aiohttp
 from astrbot.api import star
 from astrbot.api.event import AstrMessageEvent, MessageEventResult
 from astrbot.core.config.default import VERSION
+from astrbot.core.dashboard_assets import get_dashboard_version
 from astrbot.core.star import command_management
-from astrbot.core.utils.io import get_dashboard_version
 
 
 class HelpCommand:
@@ -81,9 +81,9 @@ class HelpCommand:
         return parts[1].strip()
 
     def _build_help_topic_message(self, topic: str) -> str:
-        normalized = self.HELP_TOPICS.get(topic.strip().lower()) or self.HELP_TOPICS.get(
-            topic.strip()
-        )
+        normalized = self.HELP_TOPICS.get(
+            topic.strip().lower()
+        ) or self.HELP_TOPICS.get(topic.strip())
         if normalized == "splendor":
             return self._build_splendor_help_message()
         return ""

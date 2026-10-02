@@ -426,6 +426,7 @@ flowchart TD
 - `audit_view.current_prompt`：本轮玩家 prompt 与 RPG dynamic block。
 - `audit_view.current_turn_provenance` / `turn_provenance`：本轮上下文来源。
 - `audit_view.provider_payload_preview`：发给 provider 的 payload 预览，用于检查 AstrBot 层是否二次改写。
+- AstrBot 4.28 起 Gemini 的 `_prepare_native_request` 是协程；`_build_provider_payload_preview` 与 `_build_narrative_audit_view` 必须异步调用，并通过 `inspect.isawaitable` 兼容旧版同步 provider。审计预览仍不触发真实模型请求。
 - `audit_view.contract_4_0.config_switches`：本轮关键配置开关快照。
 - `audit_view.contract_4_0.config_switches.switch_map`：由 `core/config_switch_registry.py` 生成的开关-功能映射，包含 `disabled_features`、`inactive_features`、`enabled_feature_keys` 与每个开关的关闭含义/影响链路/可跳过排查项。
 - `audit_view.contract_4_0.config_switches.rpg_reviewer_rewrite_behavior`：固定记录 RPG Reviewer 改写行为；当前应为 `deprecated_noop_except_generation_abtest`。

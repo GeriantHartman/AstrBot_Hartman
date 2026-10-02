@@ -11,6 +11,7 @@
           :available-source-types="availableSourceTypes"
           :tm="tm"
           :resolve-source-icon="resolveSourceIcon"
+          :is-monochrome-source-icon="isMonochromeSourceIcon"
           :get-source-display-name="getSourceDisplayName"
           @add-provider-source="addProviderSource"
           @select-provider-source="selectProviderSource"
@@ -24,10 +25,13 @@
         <div v-if="selectedProviderSource" class="provider-config-shell">
           <div class="provider-config-header">
             <div class="provider-config-headline">
-              <div class="provider-config-title">{{ selectedProviderSource.id }}</div>
-              <div class="provider-config-subtitle">
-                {{ selectedProviderSource.api_base || 'N/A' }}
-              </div>
+              <div class="provider-config-title">{{ getSourceDisplayName(selectedProviderSource) }}</div>
+              <ProviderSourceSubtitle
+                class="provider-config-subtitle"
+                :api-base="selectedProviderSource.api_base"
+                :sponsor="selectedSponsor"
+                :tm="tm"
+              />
             </div>
 
             <div class="provider-config-actions">
@@ -56,6 +60,7 @@
                 v-if="basicSourceConfig"
                 :iterable="basicSourceConfig"
                 :metadata="providerSourceSchema"
+                :field-links="providerSourceFieldLinks"
                 metadataKey="provider"
                 :is-editing="true"
               />
@@ -89,6 +94,7 @@
                 :supports-tool-call="supportsToolCall"
                 :supports-reasoning="supportsReasoning"
                 :format-context-limit="formatContextLimit"
+                :saving-providers="savingProviderToggles"
                 :testing-providers="testingProviders"
                 :tm="tm"
                 @fetch-models="fetchAvailableModels"
@@ -97,7 +103,7 @@
                 @toggle-provider-enable="toggleProviderEnable"
                 @test-provider="testProvider"
                 @delete-provider="deleteProvider"
-                @add-model-provider="addModelProvider"
+                @add-model-provider="openModelAddDialog"
               />
             </section>
           </div>
@@ -111,7 +117,10 @@
     </div>
 
     <v-dialog v-model="showManualModelDialog" max-width="400">
-      <v-card :title="tm('models.manualDialogTitle')">
+      <v-card>
+        <v-card-title class="text-h3 pa-4 pb-0 pl-6">
+          {{ tm('models.manualDialogTitle') }}
+        </v-card-title>
         <v-card-text class="py-4">
           <v-text-field
             v-model="manualModelId"
@@ -133,19 +142,21 @@
         <v-card-actions class="pa-4">
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="showManualModelDialog = false">取消</v-btn>
-          <v-btn color="primary" @click="confirmManualModel">添加</v-btn>
+          <v-btn color="primary" variant="tonal" @click="confirmManualModel">添加</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
     <v-dialog v-model="showProviderEditDialog" width="800">
-      <v-card :title="providerEditData?.id || tm('dialogs.config.editTitle')">
+      <v-card>
+        <v-card-title class="text-h3 pa-4 pb-0 pl-6">
+          {{ providerEditDialogTitle }}
+        </v-card-title>
         <v-card-text class="py-4">
-          <small style="color: gray;">不建议修改 ID，可能会导致指向该模型的相关配置（如默认模型、插件相关配置等）失效。旧版本 AstrBot 的 “提供商 ID” 是下方的 “ID”。</small>
           <AstrBotConfig
             v-if="providerEditData"
             :iterable="providerEditData"
-            :metadata="configSchema"
+            :metadata="providerModelConfigSchema"
             metadataKey="provider"
             :is-editing="true"
           />
@@ -161,6 +172,7 @@
           </v-btn>
           <v-btn
             color="primary"
+            variant="tonal"
             :loading="savingProviders.includes(providerEditData?.id)"
             @click="saveEditedProvider"
           >
@@ -177,12 +189,13 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import axios from 'axios'
+import { computed, ref } from 'vue'
 import { useModuleI18n } from '@/i18n/composables'
 import AstrBotConfig from '@/components/shared/AstrBotConfig.vue'
 import ProviderModelsPanel from '@/components/provider/ProviderModelsPanel.vue'
+import ProviderSourceSubtitle from '@/components/provider/ProviderSourceSubtitle.vue'
 import ProviderSourcesPanel from '@/components/provider/ProviderSourcesPanel.vue'
+import { useProviderModelConfigDialog } from '@/composables/useProviderModelConfigDialog'
 import { useProviderSources } from '@/composables/useProviderSources'
 
 const props = defineProps({
@@ -206,9 +219,11 @@ function showMessage(message, color = 'success') {
 
 const {
   selectedProviderSource,
+  selectedSponsor,
   availableModels,
   loadingModels,
   savingSource,
+  savingProviderToggles,
   testingProviders,
   isSourceModified,
   configSchema,
@@ -222,6 +237,7 @@ const {
   advancedSourceConfig,
   manualProviderId,
   resolveSourceIcon,
+  isMonochromeSourceIcon,
   getSourceDisplayName,
   supportsImageInput,
   supportsAudioInput,
@@ -233,7 +249,7 @@ const {
   deleteProviderSource,
   saveProviderSource,
   fetchAvailableModels,
-  addModelProvider,
+  buildModelProviderConfig,
   deleteProvider,
   testProvider,
   toggleProviderEnable,
@@ -245,11 +261,37 @@ const {
   showMessage
 })
 
+const providerSourceFieldLinks = computed(() => (
+  selectedProviderSource.value?.provider === 'ssycloud'
+    ? {
+        key: {
+          label: tm('providerSources.getApiKey'),
+          href: 'https://www.shengsuanyun.com/?from=CH_T70U2X9L'
+        }
+      }
+    : {}
+))
+
 const showManualModelDialog = ref(false)
-const showProviderEditDialog = ref(false)
-const providerEditData = ref(null)
-const providerEditOriginalId = ref('')
-const savingProviders = ref([])
+
+const {
+  showProviderEditDialog,
+  providerEditData,
+  savingProviders,
+  providerModelConfigSchema,
+  providerEditDialogTitle,
+  openProviderEdit,
+  openModelAddDialog,
+  saveEditedProvider
+} = useProviderModelConfigDialog({
+  selectedProviderSource,
+  configSchema,
+  buildModelProviderConfig,
+  modelAlreadyConfigured,
+  loadConfig,
+  tm,
+  showMessage
+})
 
 function openManualModelDialog() {
   if (!selectedProviderSource.value) {
@@ -274,39 +316,10 @@ async function confirmManualModel() {
     showMessage(tm('models.manualModelExists'), 'error')
     return
   }
-  await addModelProvider(modelId)
   showManualModelDialog.value = false
+  openModelAddDialog(modelId)
 }
 
-function openProviderEdit(provider) {
-  providerEditData.value = JSON.parse(JSON.stringify(provider))
-  providerEditOriginalId.value = provider.id
-  showProviderEditDialog.value = true
-}
-
-async function saveEditedProvider() {
-  if (!providerEditData.value) return
-
-  savingProviders.value.push(providerEditData.value.id)
-  try {
-    const res = await axios.post('/api/config/provider/update', {
-      id: providerEditOriginalId.value || providerEditData.value.id,
-      config: providerEditData.value
-    })
-
-    if (res.data.status === 'error') {
-      throw new Error(res.data.message)
-    }
-
-    showMessage(res.data.message || tm('providerSources.saveSuccess'))
-    showProviderEditDialog.value = false
-    await loadConfig()
-  } catch (err) {
-    showMessage(err.response?.data?.message || err.message || tm('providerSources.saveError'), 'error')
-  } finally {
-    savingProviders.value = savingProviders.value.filter(id => id !== providerEditData.value?.id)
-  }
-}
 </script>
 
 <style scoped>
