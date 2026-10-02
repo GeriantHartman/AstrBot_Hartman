@@ -1,6 +1,6 @@
 """Art arm driver: drives a live AstrBot session through the Art (Playwright) plugin.
 
-Per session: fresh webchat session → /art start <card> 恋人 <preset> → setup turns
+Per session: fresh webchat session → /art start <preset> → request character → setup turns
 → presence gate → scored turns.
 """
 
@@ -72,13 +72,19 @@ class ArtDriver:
 
         # 1) Start Art session
         preset = scenario.rpg_preset or "default"
-        start_cmd = f"/art start {cell.card.name} 恋人 {preset}"
+        start_cmd = f"/art start {preset}"
         reply = await self._send(cell, session_id, start_cmd)
         setup["steps"].append({"cmd": "start", "reply": reply.text[:400]})
         if "已被 RPG 插件占用" in reply.text:
             raise SessionAborted(f"{cell.label()}: session was occupied by RPG")
 
         last_text = clean_reply(reply.text)
+
+        reply = await self._send(
+            cell, session_id, f"请让{cell.card.name}登场；我们默认已是恋人。"
+        )
+        last_text = clean_reply(reply.text)
+        setup["steps"].append({"cmd": "cast", "reply": last_text[:400]})
 
         # 2) Setup turns (not scored)
         for line in scenario.rpg_setup_turns:

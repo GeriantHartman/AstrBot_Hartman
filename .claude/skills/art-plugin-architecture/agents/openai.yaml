@@ -1,0 +1,4 @@
+interface:
+  display_name: "Art 单主模型架构"
+  short_description: "维护 Art 单主模型、五工具、私有资产、UID 后台与整轮恢复的架构"
+  default_prompt: "使用 $art-plugin-architecture，按当前代码核对 Art 的主模型接管、上下文、五工具、私有资产、UID USER 后台、持久恢复和 Discord 交付，再实施修改并同步文档与镜像。"

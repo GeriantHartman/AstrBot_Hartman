@@ -1,7 +1,7 @@
 import base64
 from io import BytesIO
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -358,3 +358,24 @@ async def test_discord_send_record_resolves_audio_with_media_resolver(monkeypatc
     assert view is None
     assert embeds == []
     assert reference_message_id is None
+
+
+@pytest.mark.asyncio
+async def test_art_reasoning_suppresses_mentions_and_link_previews(monkeypatch):
+    from astrbot.core.platform.astr_message_event import AstrMessageEvent
+
+    event = DiscordPlatformEvent.__new__(DiscordPlatformEvent)
+    event.interaction_followup_webhook = None
+    event.get_extra = lambda key: key == "art_agent_delivery"
+    target = MagicMock(spec=discord_platform_event.discord.abc.Messageable)
+    target.send = AsyncMock()
+    event._get_channel = AsyncMock(return_value=target)
+    monkeypatch.setattr(AstrMessageEvent, "send", AsyncMock())
+    await event.send(
+        MessageChain(type="art_reasoning").message("思考\n||@everyone hidden||")
+    )
+    kwargs = target.send.call_args.kwargs
+    assert kwargs["allowed_mentions"].everyone is False
+    assert kwargs["allowed_mentions"].users is False
+    assert kwargs["allowed_mentions"].roles is False
+    assert kwargs["suppress_embeds"] is True

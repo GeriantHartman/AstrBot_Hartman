@@ -486,6 +486,7 @@ Key routing rules:
 - Save progress, checkpoint, resume → invoke checkpoint
 - Code quality, health check → invoke health
 - RP 跑分、模型 RP 能力对比、验角色卡、角色卡规模排名（bare / YAML / skill 卡）、插件 4.0 vs 5.0 回归 → invoke rp-bench
+- Art 单主模型、工具、私有资产、UID USER、恢复或 Persona 注入修改 → invoke art-plugin-architecture；账本事故取证 → invoke art-ledger-audit
 
 ### Agent skills 双份镜像约定
 
@@ -499,6 +500,7 @@ Key routing rules:
 | RPG 审计账本 | `.codex/skills/rpg-ledger-audit/` | `.claude/skills/rpg-ledger-audit/` |
 | RPG 插件架构 | `.codex/skills/rpg-plugin-architecture/` | `.claude/skills/rpg-plugin-architecture/` |
 | Art 审计账本 | `.codex/skills/art-ledger-audit/` | `.claude/skills/art-ledger-audit/` |
+| Art 单主模型架构 | `.codex/skills/art-plugin-architecture/` | `.claude/skills/art-plugin-architecture/` |
 
 **暂未镜像**（目前只在 `.codex/skills/` 下）：`astrbot-plugin-developer`、`new-elysium-cardroom-developer`、`rpg-canonical-character-converter`、`rpg-tool-analysis`。若要纳入镜像，把它加进上表。
 

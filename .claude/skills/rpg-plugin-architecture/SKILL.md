@@ -18,7 +18,7 @@ description: 维护 AstrBot Agentic RPG 插件架构地图。用于修改、审�
 - 所有状态变化都应落在 `WorldStateMachine`、`DatabaseManager` 或对应存储类里，Narrator 只能叙述工具已经确认的事实。
 - 角色卡、NPC `character_contract`、`npc_packet`、Director 输出、Narrative Contract 是叙事一致性的关键链路；不要只改最终 Narrator prompt。`character_contract` 是 NPC 身份、外貌、声线、场景职能与 `story_anchors`（身世、成长、当前经历、目标）的短硬事实边界，优先于长 `profile_text`、Director 和历史正文。渲染给 Router/Narrator/Validator 时应使用人类可读地点名，不要把 `local_id`/hash 作为地点交给子代理。
 - Reviewer/rewrite 已从 RPG 主链路废弃。默认不再审核或改写玩家可见回复；只有显式开启 generation ABTest 的 session 才会把同轮快照旁路发送给 Reviewer 做对照审计。新的 RPG 问题不要继续加 reviewer 规则；修复应回到 Router、工具、contract、ChatTemplate、style/guidance 或审计埋点。
-- Session 归属独占：RPG 与 Art 剧作家插件共存时遵循 Session 互斥原则。一个 session_id 同一时间仅归属于其一。RPG 的 `on_llm_request` 与 `/rpg start` 会通过 `_is_art_claimed` 检查 Art 会话库；已被 Art 接管的 session，RPG 不注入工具、不触发流程；用户切换必须先通过对方的 `/art forget` 或 `/rpg forget` 释放认领。
+- Session 归属独占：RPG 与 Art 单主模型陪伴插件共存时遵循 Session 互斥原则。一个 session_id 同一时间仅归属于其一。RPG 的 `on_llm_request` 与 `/rpg start` 会通过 `_is_art_claimed` 检查 Art 会话库；已被 Art 接管的 session，RPG 不注入工具、不触发流程；Art 2.x 的会话库为 `session_s_<sha256(session_id)[:32]>.db`，检查时优先读取此路径，并兼容旧 `session_<规范化 session_id>.db`；查询必须精确匹配内部 session_id。用户切换先通过 `/art reset` 或 `/rpg reset` 释放认领；`forget` 仅撤回互动，不释放归属。Art 的主模型、五工具、UID USER 和整轮恢复按 [art-plugin-architecture](../art-plugin-architecture/SKILL.md) 独立维护，不能套用 RPG Router/Narrator/Director 链路。
 - `.codex/skills/rpg-plugin-architecture/SKILL.md` 是活文档。改流程时同步改图、改工具时同步改工具表、改审计时同步改审计说明。
 
 ## 路径地图

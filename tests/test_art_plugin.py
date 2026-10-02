@@ -33,20 +33,9 @@ from plugins.astrbot_plugin_art.core.state import ArtStateManager
 from plugins.astrbot_plugin_art.core.variance import (
     NEUTRAL_DAILY_TONE,
     NEUTRAL_SCENE_CARD,
-    roll_action_outcome,
     roll_daily_tone,
     roll_scene_card,
 )
-from plugins.astrbot_plugin_art.layers.assemble import (
-    _LAYER1_SENTINEL,
-    assemble_actor_request,
-    strip_actor_forbidden_sections,
-)
-from plugins.astrbot_plugin_art.layers.scribe import run_scribe
-from plugins.astrbot_plugin_art.tools.cast import execute_cast
-from plugins.astrbot_plugin_art.tools.character import execute_fix_character
-from plugins.astrbot_plugin_art.tools.recall import execute_recall
-from plugins.astrbot_plugin_art.tools.scene import execute_change_scene
 
 
 @pytest.fixture
@@ -160,11 +149,6 @@ async def test_art_database_operations(tmp_art_env):
     assert len(mems) == 1
     assert "咖啡馆" in mems[0]["summary"]
 
-    # 7. Rollback
-    revert_res = await db.rollback_recent_turns(sid, 1)
-    assert revert_res["memories_reverted"] == 1
-    assert revert_res["ledger_reverted"] == 1
-
     await db.close_all()
 
 
@@ -196,20 +180,6 @@ def test_variance_rolls():
     assert roll_scene_card() == NEUTRAL_SCENE_CARD
 
     # No outcome table configured → the caller omits the pre-drawn line.
-    assert roll_action_outcome(None) is None
-    assert roll_action_outcome([]) is None
-
-    outcomes = [
-        {"grade": "顺利", "weight": 1.0, "description": "流畅"},
-        {"grade": "落空", "weight": 0.0, "description": "没接住"},
-    ]
-    outcome = roll_action_outcome(outcomes)
-    assert outcome["grade"] == "顺利"
-    assert set(outcome) == {"grade", "weight", "description"}
-
-    # The drawn outcome is a copy: mutating it must not poison the cached asset.
-    outcome["grade"] = "MUTATED"
-    assert outcomes[0]["grade"] == "顺利"
 
 
 def test_character_cards(tmp_art_env):
@@ -261,283 +231,6 @@ def test_character_cards(tmp_art_env):
     assert deleted is True
     res_card3, res_source3, _ = card_mgr.resolve_card("星见雪", sid)
     assert res_source3 == "none"
-
-
-@pytest.mark.asyncio
-async def test_tools_execution(tmp_art_env):
-    state: ArtStateManager = tmp_art_env["state"]
-    sid = "tool-test-sid"
-    await state.init_session(sid)
-
-    # 1. change_scene tool
-    res_str = await execute_change_scene(state, sid, "海边", "黄昏")
-    res = json.loads(res_str)
-    assert res["ok"] is True
-    assert res["data"]["location"] == "海边"
-    assert "📍 海边 · 黄昏" in res["data"]["notice"]
-
-    # 2. cast tool (enter existing)
-    res_str = await execute_cast(state, sid, "流萤", action="enter")
-    res = json.loads(res_str)
-    assert res["ok"] is True
-    assert res["data"]["state"] == "present"
-
-    # cast tool (generate unknown character)
-    res_str = await execute_cast(state, sid, "艾琳娜", action="enter")
-    res = json.loads(res_str)
-    assert res["ok"] is True
-    assert res["data"]["card_source"] == "generated"
-
-    # cast tool (leave)
-    res_str = await execute_cast(state, sid, "艾琳娜", action="leave")
-    res = json.loads(res_str)
-    assert res["ok"] is True
-    assert res["data"]["state"] == "absent"
-
-    # 3. fix_character tool
-    res_str = await execute_fix_character(
-        state, sid, "艾琳娜", action="update", details="有着琥珀色的双瞳"
-    )
-    res = json.loads(res_str)
-    assert res["ok"] is True
-
-    # 4. recall tool
-    await state.db.add_memory(sid, "傍晚在海滩散步，捡到了贝壳", location="海边")
-    res_str = await execute_recall(state, sid, "贝壳")
-    res = json.loads(res_str)
-    assert res["ok"] is True
-    assert len(res["data"]["memories"]) == 1
-
-
-@pytest.mark.asyncio
-async def test_assemble_and_writing_core(tmp_art_env):
-    state: ArtStateManager = tmp_art_env["state"]
-    sid = "assemble-test-sid"
-    await state.init_session(sid)
-    # /art start no longer loads a player-chosen character, so cast one directly.
-    await state.cast_character(sid, "流萤", action="enter")
-
-    core_prompt = tmp_art_env["assets"].prompts.text("actor", "writing_core")
-    assert "写作质量核心协议" in core_prompt
-    assert "红线 1" in core_prompt
-    assert "提议归角色，决定归玩家" in core_prompt
-    assert (
-        "绝不使用 `[1][2][3]`" in core_prompt
-    )  # Ensured numbered menu rules are explicitly forbidden
-
-    class DummyReq:
-        def __init__(self):
-            self.system_prompt = ""
-            self.contexts = []
-            self.func_tool = object()  # Simulate having a ToolSet
-
-    req = DummyReq()
-    await assemble_actor_request(
-        req=req,
-        state=state,
-        session_id=sid,
-        director_notes="- 推进花店剧情",
-        scene_transition_notice="📍 花店 · 下午",
-    )
-
-    # Verify Actor tools stripped
-    assert req.func_tool is None
-
-    # Verify stable system prompt (layer 1) contains writing core and world setting
-    sp = req.system_prompt
-    assert "写作质量核心协议" in sp or "绝对红线" in sp
-    assert "演员表演守则" in sp
-
-    # Verify dynamic context (layer 2) injected to contexts with protection markers
-    assert len(req.contexts) > 0
-    system_contexts = [m for m in req.contexts if m.get("role") == "system"]
-    assert len(system_contexts) > 0
-    last_system = system_contexts[-1]
-    assert last_system.get("_no_save") is True
-    assert last_system.get("_no_truncate") is True
-    content = last_system.get("content", "")
-    assert "流萤" in content
-    assert "编剧导演笔记" in content or "推进花店剧情" in content
-    assert "📍 花店 · 下午" in content
-
-
-@pytest.mark.asyncio
-async def test_scribe_persists_llm_extraction_once(tmp_art_env):
-    """The LLM decides what counts as a promise; the code only records it — once.
-
-    No keyword matching happens in Python any more, so feeding the identical
-    extraction twice must land exactly one row.
-    """
-    state: ArtStateManager = tmp_art_env["state"]
-    sid = "scribe-test-sid"
-    await state.init_session(sid)
-
-    payload = {
-        "confirmed_promise": "周末一起去水族馆",
-        "pacing_preference": "最近别折腾我，想轻松一点",
-        "shared_memory": "雨声里一起喝的拿铁",
-        "unresolved_tiff": "",
-        "gift": "",
-        "player_wish": "",
-        "player_profile_note": "",
-        "hook_reaction": "none",
-        "hook_title": "",
-    }
-
-    class FakeResponse:
-        completion_text = json.dumps(payload, ensure_ascii=False)
-
-    class FakeContext:
-        async def tool_loop_agent(self, **kwargs):
-            return FakeResponse()
-
-    class DummyEvent:
-        pass
-
-    for _ in range(2):
-        await run_scribe(
-            star_context=FakeContext(),
-            event=DummyEvent(),
-            state=state,
-            session_id=sid,
-            player_input="没问题，我答应你，周末一起去水族馆。",
-            actor_response="太好了！你答应了周末一起去水族馆，我很期待。",
-            provider_id="fake-provider",
-        )
-
-    promises = await state.db.get_ledger_entries(sid, category="promise")
-    assert len(promises) == 1
-    assert promises[0]["value"] == "周末一起去水族馆"
-
-    prefs = await state.db.get_ledger_entries(sid, category="pacing_preference")
-    assert len(prefs) == 1
-    assert "别折腾" in prefs[0]["value"]
-
-    memories = await state.db.get_ledger_entries(sid, category="memory")
-    assert len(memories) == 1
-
-
-@pytest.mark.asyncio
-async def test_scribe_hook_reaction_touches_one_hook(tmp_art_env):
-    """Accepting one hook must not complete every unrelated future hook."""
-    state: ArtStateManager = tmp_art_env["state"]
-    sid = "scribe-hook-sid"
-    await state.init_session(sid)
-
-    first = await state.db.add_script(sid, "short", "一起去天台看星星", "她提过想去看星星")
-    second = await state.db.add_script(sid, "short", "周末去水族馆", "她悄悄订了票")
-
-    payload = {
-        "confirmed_promise": "",
-        "pacing_preference": "",
-        "shared_memory": "",
-        "unresolved_tiff": "",
-        "gift": "",
-        "player_wish": "",
-        "player_profile_note": "",
-        "hook_reaction": "accepted",
-        "hook_title": "周末去水族馆",
-    }
-
-    class FakeResponse:
-        completion_text = json.dumps(payload, ensure_ascii=False)
-
-    class FakeContext:
-        async def tool_loop_agent(self, **kwargs):
-            return FakeResponse()
-
-    class DummyEvent:
-        pass
-
-    await run_scribe(
-        star_context=FakeContext(),
-        event=DummyEvent(),
-        state=state,
-        session_id=sid,
-        player_input="好呀，周末去水族馆。",
-        actor_response="她眼睛亮了一下。",
-        provider_id="fake-provider",
-    )
-
-    active_ids = {s["id"] for s in await state.db.get_active_scripts(sid, scope="short")}
-    assert second not in active_ids  # the named hook was accepted
-    assert first in active_ids  # the unrelated hook is untouched
-
-
-@pytest.mark.asyncio
-async def test_art_plugin_commands(tmp_art_env):
-    from plugins.astrbot_plugin_art.main import ArtPlugin
-
-    plugin = ArtPlugin(_MockArtContext(), config={"enable_debug": True})
-    # Override db and state to use tmp_art_env
-    plugin.db = tmp_art_env["db"]
-    plugin.state = tmp_art_env["state"]
-    plugin.card_mgr = tmp_art_env["card_mgr"]
-    plugin.assets = tmp_art_env["assets"]
-
-    sid = "plugin-cmd-test-sid"
-    event = _MockCommandEvent(sid, "开拓者")
-
-    # 1. /art help
-    help_results = [r async for r in plugin.art_help(event)]
-    assert len(help_results) == 1
-    assert "/art start" in help_results[0]
-    assert "/art help" in help_results[0]
-
-    # 2. /art start — a one-line confirmation, then the LLM-speaks-first request
-    start_results = [r async for r in plugin.art_start(event)]
-    assert len(start_results) == 2
-    assert "世界已开启" in start_results[0]
-    assert "世界初启" in start_results[1].prompt
-    # Only the prologue avatar is on stage: no player-chosen card is pre-loaded.
-    present = {c["character_name"] for c in await plugin.db.get_present_characters(sid)}
-    assert present == {"爱莉希雅"}
-
-    # 3. /art ledger
-    ledger_results = [r async for r in plugin.art_ledger(event)]
-    assert len(ledger_results) == 1
-    assert "关于你的关系账本" in ledger_results[0]
-
-    # 4. /art card
-    card_results = [r async for r in plugin.art_card(event, character_name="流萤")]
-    assert len(card_results) == 1
-    assert "角色卡：流萤" in card_results[0]
-
-    # 5. /art forget
-    forget_results = [r async for r in plugin.art_forget(event, count=1)]
-    assert len(forget_results) == 1
-    assert "已成功回滚" in forget_results[0]
-
-    # 6. /art debug
-    debug_results = [r async for r in plugin.art_debug(event)]
-    assert len(debug_results) == 1
-    assert "Art 运行态全景" in debug_results[0]
-
-    # 7. /art reset
-    reset_results = [r async for r in plugin.art_reset(event)]
-    assert len(reset_results) == 1
-    await plugin.star_shutdown()
-
-
-def test_clean_narrative_reply():
-    from plugins.astrbot_plugin_art.main import clean_narrative_reply
-
-    # Case 1: Plain text unchanged
-    assert clean_narrative_reply("你好，开拓者。") == "你好，开拓者。"
-
-    # Case 2: Strip <think>...</think> block
-    raw_with_think = "<think>Let me roleplay Firefly properly.</think>你回来了？"
-    assert clean_narrative_reply(raw_with_think) == "你回来了？"
-
-    # Case 3: Strip English meta reasoning prefix (DeepSeek-flash artifact)
-    raw_with_meta = (
-        "As Firefly, I should respond in character.\n微风吹拂过花坛，少女轻声说道。"
-    )
-    assert clean_narrative_reply(raw_with_meta) == "微风吹拂过花坛，少女轻声说道。"
-
-    # Case 4: Strip xiaoai_core scaffolding
-    raw_with_xiaoai = "<xiaoai_core>internal plan</xiaoai_core>我们去那边走走吧。"
-    assert clean_narrative_reply(raw_with_xiaoai) == "我们去那边走走吧。"
 
 
 # ---------------------------------------------------------------------------
@@ -710,115 +403,6 @@ def test_audit_ledger_max_files_zero_disables_pruning(tmp_path):
     assert len(list(session_dir.glob("*.json"))) == 3
 
 
-@pytest.mark.asyncio
-async def test_scribe_audit_records_no_provider(tmp_art_env, tmp_path):
-    """The silent 'no provider' exit now leaves an explicit audit record."""
-    state: ArtStateManager = tmp_art_env["state"]
-    sid = "scribe-audit-noprov"
-    await state.init_session(sid)
-
-    ledger = _make_ledger(tmp_path / "llm_audit")
-
-    class DummyContext:
-        pass
-
-    class DummyEvent:
-        pass
-
-    await run_scribe(
-        star_context=DummyContext(),
-        event=DummyEvent(),
-        state=state,
-        session_id=sid,
-        player_input="今天想安静待着【轻松一点】",
-        actor_response="好呀。",
-        provider_id=None,
-        audit_ledger=ledger,
-        audit_turn=_audit_turn("t-noprov"),
-    )
-
-    rows = ledger.load_turn_index(sid)
-    # No actor call in this test, so nothing reaches the index.
-    assert rows == []
-
-    session_dir = tmp_path / "llm_audit" / ledger.session_key(sid)
-    docs = [json.loads(p.read_text(encoding="utf-8")) for p in session_dir.glob("*.json")]
-    assert len(docs) == 1
-    doc = docs[0]
-    assert doc["stage"] == "scribe"
-    assert doc["response"]["error"] == "no_provider"
-    assert doc["response"]["meta"]["fallback_reason"] == "no_provider"
-    # No language parsing happens in code any more: the only deterministic fact
-    # this stage records is whether a scene was archived.
-    assert doc["audit_view"]["deterministic"] == {"scene_archived": False}
-
-
-@pytest.mark.asyncio
-async def test_scribe_audit_records_parsed_writes(tmp_art_env, tmp_path):
-    """A successful scribe pass records the raw JSON and every write it made."""
-    state: ArtStateManager = tmp_art_env["state"]
-    sid = "scribe-audit-ok"
-    await state.init_session(sid)
-
-    ledger = _make_ledger(tmp_path / "llm_audit")
-
-    class FakeResponse:
-        completion_text = json.dumps(
-            {
-                "confirmed_promise": "下次一起去水族馆",
-                "pacing_preference": "",
-                "shared_memory": "雨声里一起喝的拿铁",
-                "unresolved_tiff": "",
-                "gift": "",
-                "player_wish": "想去看海",
-                "player_profile_note": "偏爱安静的陪伴",
-                "hook_reaction": "none",
-                "hook_title": "",
-            },
-            ensure_ascii=False,
-        )
-
-    class FakeContext:
-        async def tool_loop_agent(self, **kwargs):
-            return FakeResponse()
-
-    class DummyEvent:
-        pass
-
-    await run_scribe(
-        star_context=FakeContext(),
-        event=DummyEvent(),
-        state=state,
-        session_id=sid,
-        player_input="外面的雨好像停了。",
-        actor_response="她把杯子推近了一点。",
-        provider_id="fake-provider",
-        audit_ledger=ledger,
-        audit_turn=_audit_turn("t-ok"),
-    )
-
-    session_dir = tmp_path / "llm_audit" / ledger.session_key(sid)
-    docs = [json.loads(p.read_text(encoding="utf-8")) for p in session_dir.glob("*.json")]
-    assert len(docs) == 1
-    doc = docs[0]
-    meta = doc["response"]["meta"]
-    assert meta["parsed_ok"] is True
-    assert meta["parsed"]["shared_memory"] == "雨声里一起喝的拿铁"
-
-    categories = {w["category"] for w in meta["writes"]}
-    assert "memory" in categories
-    assert "promise" in categories
-    assert "player_profile" in categories
-    assert "script:mid" in categories
-
-    # The writes are real, not just audited.
-    memories = await state.db.get_ledger_entries(sid, category="memory")
-    assert any("拿铁" in m["value"] for m in memories)
-    # The promise the LLM extracted is persisted, not silently dropped.
-    promises = await state.db.get_ledger_entries(sid, category="promise")
-    assert [p["value"] for p in promises] == ["下次一起去水族馆"]
-
-
 class _DummyReq:
     """Minimal stand-in for AstrBot's ProviderRequest."""
 
@@ -838,98 +422,17 @@ def _dynamic_block(req: _DummyReq) -> str:
 
 
 @pytest.mark.asyncio
-async def test_cast_is_authoritative_for_presence(tmp_art_env):
-    """`[cast]` decides who is on stage — not the scene row's stale snapshot."""
-    state: ArtStateManager = tmp_art_env["state"]
-    sid = "presence-sid"
-    await state.init_session(sid)
-    await state.cast_character(sid, "流萤", action="enter")
-
-    req = _DummyReq()
-    await assemble_actor_request(
-        req=req, state=state, session_id=sid, director_notes="-"
-    )
-    assert "【角色：流萤】" in _dynamic_block(req)
-
-    # Casting someone mid-scene must inject their card this very turn.
-    await execute_cast(state, sid, "三月七", action="enter")
-    req = _DummyReq()
-    await assemble_actor_request(
-        req=req, state=state, session_id=sid, director_notes="-"
-    )
-    assert "【角色：三月七】" in _dynamic_block(req)
-
-    # Leaving removes her from the very next prompt.
-    await execute_cast(state, sid, "三月七", action="leave")
-    req = _DummyReq()
-    await assemble_actor_request(
-        req=req, state=state, session_id=sid, director_notes="-"
-    )
-    block = _dynamic_block(req)
-    assert "【角色：三月七】" not in block
-    assert "【角色：流萤】" in block
-
-    # A presence list passed explicitly to change_scene becomes authoritative too
-    # (it used to be written only to the scene snapshot and silently dropped).
-    await execute_change_scene(
-        state, sid, "海边", "黄昏", present_characters=["流萤", "三月七"]
-    )
-    present = await state.db.get_present_characters(sid)
-    assert {c["character_name"] for c in present} == {"流萤", "三月七"}
-
-
-@pytest.mark.asyncio
-async def test_layer1_injected_every_turn(tmp_art_env):
-    """Layer 1 is re-appended unconditionally, without accumulating or doubling."""
-    state: ArtStateManager = tmp_art_env["state"]
-    sid = "layer1-sid"
-    await state.init_session(sid)
-
-    for _ in range(3):
-        req = _DummyReq("你是 Persona 里配置的角色。")
-        await assemble_actor_request(
-            req=req, state=state, session_id=sid, director_notes="-"
-        )
-        assert "写作质量核心协议" in req.system_prompt
-        assert "世界背景" in req.system_prompt
-        assert "演员表演守则" in req.system_prompt
-        # Persona content is preserved, and the art block never doubles.
-        assert "你是 Persona 里配置的角色。" in req.system_prompt
-        assert req.system_prompt.count("写作质量核心协议") == 1
-
-
-@pytest.mark.asyncio
-async def test_unknown_preset_reports_and_does_not_claim(tmp_art_env):
-    """A typo in the world name must not half-initialise a claimed session."""
-    from plugins.astrbot_plugin_art.main import ArtPlugin
-
-    plugin = ArtPlugin(_MockArtContext(), config={})
-    plugin.db = tmp_art_env["db"]
-    plugin.state = tmp_art_env["state"]
-    plugin.card_mgr = tmp_art_env["card_mgr"]
-    plugin.assets = tmp_art_env["assets"]
-
-    sid = "bad-preset-sid"
-    event = _MockCommandEvent(sid)
-    results = [r async for r in plugin.art_start(event, preset_name="不存在的世界")]
-    assert len(results) == 1
-    assert "未知世界观" in results[0]
-    assert not await is_art_claimed(sid, tmp_art_env["db"])
-    await plugin.star_shutdown()
-
-
-@pytest.mark.asyncio
 async def test_ledger_insert_if_absent_is_idempotent(tmp_art_env):
     db: ArtDatabase = tmp_art_env["db"]
     sid = "ledger-idem-sid"
 
-    first = await db.add_ledger_entry_if_absent(sid, "memory", "共同回忆", "雨声里的拿铁")
+    first = await db.add_ledger_entry_if_absent(
+        sid, "memory", "共同回忆", "雨声里的拿铁"
+    )
     repeat = await db.add_ledger_entry_if_absent(
         sid, "memory", "共同回忆", "雨声里的拿铁"
     )
-    other = await db.add_ledger_entry_if_absent(
-        sid, "memory", "共同回忆", "另一件小事"
-    )
+    other = await db.add_ledger_entry_if_absent(sid, "memory", "共同回忆", "另一件小事")
 
     assert first is not None
     assert repeat is None
@@ -1109,85 +612,6 @@ async def test_prologue_asset_defaults_and_preset_override(tmp_art_env):
     assert state.prologue_opening({"prologue_opening": "自定义开场"}) == "自定义开场"
 
 
-@pytest.mark.asyncio
-async def test_start_prepares_a_conversation_for_the_opening(tmp_art_env):
-    """Without a conversation AstrBot's `_save_to_history` bails, so the opening
-    turn would never reach history and the next prologue turn would be blind."""
-    conv_mgr = _FakeConversationManager()
-    plugin = _art_plugin(tmp_art_env, _MockArtContext(conv_mgr))
-
-    sid = "opening-conv-sid"
-    event = _MockCommandEvent(sid)
-    results = [r async for r in plugin.art_start(event)]
-
-    assert len(results) == 2
-    assert results[1].conversation == {"umo": sid, "id": "conv-0"}
-    assert conv_mgr.created == [sid]
-    await plugin.star_shutdown()
-
-
-@pytest.mark.asyncio
-async def test_opening_turn_ignores_the_command_text(tmp_art_env):
-    """The opening is triggered by /art start, not by player words."""
-    plugin = _art_plugin(tmp_art_env)
-    sid = "opening-blank-sid"
-    await plugin.state.init_session(sid)
-
-    normal = _MockCommandEvent(sid, message_str="art start default")
-    await plugin.on_art_llm_request(normal, _DummyReq())
-    assert plugin._turn_states[sid]["player_input"] == "art start default"
-
-    opening = _MockCommandEvent(sid, message_str="art start default")
-    opening.set_extra("art_opening_turn", True)
-    await plugin.on_art_llm_request(opening, _DummyReq())
-    assert plugin._turn_states[sid]["player_input"] == ""
-    await plugin.star_shutdown()
-
-
-@pytest.mark.asyncio
-async def test_scribe_persists_relationship_premise(tmp_art_env):
-    """What the player says about the relationship becomes a session field."""
-    state: ArtStateManager = tmp_art_env["state"]
-    sid = "scribe-premise-sid"
-    await state.init_session(sid)
-
-    payload = {
-        "confirmed_promise": "",
-        "relationship_premise": "恋人，同居第三个月",
-        "pacing_preference": "",
-        "shared_memory": "",
-        "unresolved_tiff": "",
-        "gift": "",
-        "player_wish": "",
-        "player_profile_note": "",
-        "hook_reaction": "none",
-        "hook_title": "",
-    }
-
-    class FakeResponse:
-        completion_text = json.dumps(payload, ensure_ascii=False)
-
-    class FakeContext:
-        async def tool_loop_agent(self, **kwargs):
-            return FakeResponse()
-
-    class DummyEvent:
-        pass
-
-    await run_scribe(
-        star_context=FakeContext(),
-        event=DummyEvent(),
-        state=state,
-        session_id=sid,
-        player_input="其实我们已经是恋人了，同居第三个月。",
-        actor_response="她笑了笑。",
-        provider_id="fake-provider",
-    )
-
-    sess = await state.db.get_session(sid)
-    assert sess["relationship_premise"] == "恋人，同居第三个月"
-
-
 def test_preset_resolves_chinese_names_and_aliases(tmp_art_env):
     """Chinese display names and aliases work as well as the English stems."""
     presets = tmp_art_env["assets"].presets
@@ -1205,21 +629,6 @@ def test_preset_resolves_chinese_names_and_aliases(tmp_art_env):
 
     # The "available" hint lists names a player can actually type.
     assert "黄金庭院（elysium）" in "、".join(presets.display_names())
-
-
-@pytest.mark.asyncio
-async def test_start_accepts_a_chinese_world_name(tmp_art_env):
-    plugin = _art_plugin(tmp_art_env)
-    sid = "cn-world-sid"
-    event = _MockCommandEvent(sid)
-
-    results = [r async for r in plugin.art_start(event, preset_name="新爱莉都")]
-
-    assert len(results) == 2
-    # The world is canonicalised to its internal name before being stored.
-    assert (await plugin.db.get_session(sid))["preset"] == "elysium"
-    assert "黄金庭院" in results[0]
-    await plugin.star_shutdown()
 
 
 # ---------------------------------------------------------------------------
@@ -1245,75 +654,6 @@ _TOOL_BLOCK = (
     "Unless the user explicitly specifies a different directory, "
     "perform all file-related operations in this workspace.\n"
 )
-
-
-def test_strip_removes_core_skills_and_tool_apparatus():
-    """The Actor must not be told about skills it has no tools to read."""
-    prompt = _PERSONA + _SKILLS_BLOCK + _TOOL_BLOCK
-
-    cleaned, removed = strip_actor_forbidden_sections(prompt)
-
-    assert set(removed) == {
-        "skills_inventory",
-        "tool_call_prompt",
-        "computer_use_workspace",
-    }
-    assert cleaned == _PERSONA
-    for leak in ("## Skills", "SKILL.md", "When using tools", "workspaces"):
-        assert leak not in cleaned
-
-
-def test_strip_is_a_noop_when_nothing_to_remove():
-    clean = "# Persona\n正常的系统提示，没有核心注入的工具说明。"
-    assert strip_actor_forbidden_sections(clean) == (clean, [])
-    assert strip_actor_forbidden_sections("") == ("", [])
-
-
-def test_strip_refuses_to_truncate_art_content():
-    """Fails safe: never drop art's own protocol along with core's apparatus."""
-    prompt = (
-        _PERSONA
-        + _SKILLS_BLOCK
-        + _TOOL_BLOCK
-        + f"\n\n---\n\n# 剧作家写作质量核心协议\n\n{_LAYER1_SENTINEL}"
-    )
-
-    assert strip_actor_forbidden_sections(prompt) == (prompt, [])
-
-
-@pytest.mark.asyncio
-async def test_assemble_strips_core_apparatus_from_actor_prompt(tmp_art_env):
-    state: ArtStateManager = tmp_art_env["state"]
-    sid = "strip-test-sid"
-    await state.init_session(sid)
-
-    class DummyReq:
-        def __init__(self):
-            self.system_prompt = _PERSONA + _SKILLS_BLOCK + _TOOL_BLOCK
-            self.contexts = []
-            self.func_tool = object()
-
-    req = DummyReq()
-    stripped = await assemble_actor_request(
-        req=req,
-        state=state,
-        session_id=sid,
-        director_notes="- 推进剧情",
-    )
-
-    assert set(stripped) == {
-        "skills_inventory",
-        "tool_call_prompt",
-        "computer_use_workspace",
-    }
-    # Persona survives; the skills inventory and tool guidance do not.
-    assert "# Persona Instructions" in req.system_prompt
-    assert "## Skills" not in req.system_prompt
-    assert "SKILL.md" not in req.system_prompt
-    assert "When using tools" not in req.system_prompt
-    assert "workspaces" not in req.system_prompt
-    # Art's own protocol is still appended.
-    assert "写作质量核心协议" in req.system_prompt
 
 
 # ---------------------------------------------------------------------------
@@ -1396,9 +736,7 @@ def test_resolve_provider_honours_selected_provider_extra():
 
 def test_resolve_provider_rejects_non_chat_selected_provider():
     """A TTS/STT/embedding id must not be handed to a tool_loop_agent call."""
-    tts = _FakeProvider(
-        "tts-1", provider_type=ProviderType.TEXT_TO_SPEECH
-    )
+    tts = _FakeProvider("tts-1", provider_type=ProviderType.TEXT_TO_SPEECH)
     ctx = _FakeContext(
         session_provider=_FakeProvider("session-model"), by_id={"tts-1": tts}
     )
@@ -1411,8 +749,7 @@ def test_resolve_provider_rejects_non_chat_selected_provider():
 def test_resolve_provider_returns_none_when_unresolvable():
     assert resolve_provider(_FakeContext(), _FakeEvent()).source == SOURCE_NONE
     assert (
-        resolve_provider(_FakeContext(raises=True), _FakeEvent()).source
-        == SOURCE_NONE
+        resolve_provider(_FakeContext(raises=True), _FakeEvent()).source == SOURCE_NONE
     )
     assert resolve_provider(_FakeContext(), _FakeEvent(umo="")).source == SOURCE_NONE
     # A provider with no id is unusable.
@@ -1424,101 +761,9 @@ def test_resolve_provider_returns_none_when_unresolvable():
     )
 
 
-def test_playwright_audit_records_resolved_provider_and_model(tmp_path):
-    """Which model ran must be readable from the ledger, not just the id."""
-    from plugins.astrbot_plugin_art.layers.playwright import _record_playwright_request
-
-    ledger = _make_ledger(tmp_path / "llm_audit")
-    path = _record_playwright_request(
-        audit_ledger=ledger,
-        audit_turn=_audit_turn("turn-model"),
-        session_id="model-sid",
-        full_prompt="prompt",
-        system_prompt="system",
-        provider_id="应急大鲸鱼/deepseek-v4-flash",
-        model="deepseek-v4-flash",
-        provider_source=SOURCE_SESSION,
-        audit_view={},
-    )
-
-    doc = json.loads(Path(path).read_text(encoding="utf-8"))
-    assert doc["provider_id"] == "应急大鲸鱼/deepseek-v4-flash"
-    assert doc["model"] == "deepseek-v4-flash"
-    assert doc["assembly_trace"]["provider_source"] == SOURCE_SESSION
-
-
 # ---------------------------------------------------------------------------
 # Playwright tool contract: handler(event, **kwargs)
 # ---------------------------------------------------------------------------
-
-
-def test_playwright_tool_handlers_take_event_as_first_argument(tmp_art_env):
-    """AstrBot invokes a handler tool as ``handler(event, **kwargs)``.
-
-    A business parameter in the first slot means the *event* lands in it — which
-    is how every ``change_scene`` / ``cast`` call died with
-    ``'DiscordPlatformEvent' object has no attribute 'strip'``.
-    """
-    import inspect
-
-    plugin = _art_plugin(tmp_art_env)
-    tool_set = plugin._build_playwright_toolset()
-
-    assert {t.name for t in tool_set.tools} == {
-        "change_scene",
-        "cast",
-        "recall",
-        "fix_character",
-    }
-    for tool in tool_set.tools:
-        params = list(inspect.signature(tool.handler).parameters)
-        assert params[0] == "event", f"{tool.name}: first arg is {params[0]!r}"
-    # The shared ToolSet must not carry per-turn session state: it is one
-    # instance for the whole plugin and would race across sessions.
-    assert not hasattr(tool_set, "current_session_id")
-
-
-@pytest.mark.asyncio
-async def test_playwright_tools_run_with_the_core_calling_convention(tmp_art_env):
-    """End-to-end through the same call shape the core uses."""
-    plugin = _art_plugin(tmp_art_env)
-    sid = "tool-call-sid"
-    await plugin.state.init_session(sid)
-
-    by_name = {t.name: t for t in plugin._build_playwright_toolset().tools}
-    event = _MockCommandEvent(sid)
-
-    cast_result = json.loads(
-        await by_name["cast"].handler(event, character_name="流萤", action="enter")
-    )
-    assert cast_result["ok"] is True
-    assert cast_result["data"]["character_name"] == "流萤"
-
-    scene_result = json.loads(
-        await by_name["change_scene"].handler(event, location="花房", time_of_day="夜里")
-    )
-    assert scene_result["ok"] is True
-    assert scene_result["data"]["location"] == "花房"
-
-    await plugin.star_shutdown()
-
-
-@pytest.mark.asyncio
-async def test_tool_error_envelope_hides_the_raw_exception(tmp_art_env, monkeypatch):
-    """The envelope reaches the playwright's context and got copied verbatim
-    into the director notes, so it must not carry exception text."""
-    state: ArtStateManager = tmp_art_env["state"]
-    secret = "INTERNAL_STACK_DETAIL_42"
-
-    async def explode(**kwargs):
-        raise RuntimeError(secret)
-
-    monkeypatch.setattr(state, "change_scene", explode)
-
-    payload = json.loads(await execute_change_scene(state, "sid", "花房"))
-    assert payload["ok"] is False
-    assert secret not in payload["error"]
-    assert "RuntimeError" not in payload["error"]
 
 
 # ---------------------------------------------------------------------------

@@ -104,6 +104,10 @@ class DiscordPlatformEvent(AstrMessageEvent):
             if chunks:
                 for idx, chunk in enumerate(chunks):
                     kwargs = {}
+                    if self.get_extra("art_agent_delivery"):
+                        kwargs["allowed_mentions"] = discord.AllowedMentions.none()
+                    if message.type == "art_reasoning":
+                        kwargs["suppress_embeds"] = True
                     if chunk:
                         kwargs["content"] = chunk
                     # 附件、embeds、view 只随最后一段发送

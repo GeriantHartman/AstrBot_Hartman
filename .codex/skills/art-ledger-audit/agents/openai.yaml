@@ -1,3 +1,4 @@
-display_name: Art 剧作家审计账本离线审计
-short_description: 离线审计 Art 剧作家插件的 LLM 账本
-default_prompt: 读取最近的 astrbot_plugin_art LLM 审计账本，逐轮核对编剧是否真实生成导演笔记还是走了兜底、演员实际收到的提示词与清洗前后的回复、书记的抽取与落库副作用，定位 provider 解析失败、核心 Skills/工具说明泄漏、审计目录不生成等静默故障，并为提示词资产或插件源码提出最小 diff。
+interface:
+  display_name: "Art 情感陪伴账本审计"
+  short_description: "离线核对 Art 单主模型工具、持久化恢复与 UID 用户画像审计"
+  default_prompt: "使用 $art-ledger-audit，先按 stage 读取索引，再核对主 agent 的上下文、恋人前提、工具写入、思考、正文与撤回；独立核对 USER reviewer 的来源、发布与冻结版本，并引用真实证据提出最小修复。"

@@ -1,113 +1,31 @@
-# Art 审计账本字段表
+# Art 2.x 审计字段
 
-对应实现：`plugins/astrbot_plugin_art/core/audit_ledger.py`。
-与 RPG 的 `llm_audit_ledger.py` 同形（同名类、同 API），差异见文末「与 RPG 账本的差异」。
+目录 `llm_audit/<session_key>/<turn_id>-agent-<session_key>.json`，索引 `llm_audit_index/<session_key>.jsonl`。session_key 使用 percent-encoding，长值加哈希；turn_id 使用 UTC+8 时间与随机后缀。
 
-## 目录布局
+| 字段 | 说明 |
+| --- | --- |
+| schema_version | agent/user_review=2；旧 stage=1 |
+| stage | agent/user_review；兼容 playwright/actor/scribe |
+| request | system_prompt、contexts、prompt、tools 的初始请求快照 |
+| assembly_trace.provider_source | selected_provider/session/none；单一 provider |
+| audit_view | agent: persona_policy、user_versions、relationship_premise；user_review: base_revision；早期 2.0 可有 stripped_sections |
+| response.text | 最终角色正文，未经叙事审核 |
+| response.error | 失败异常类型；原始工具异常仅进日志 |
+| response.meta.committed | 是否完成业务与历史提交 |
+| response.meta.tool_trace | 按序 tool、args、ok、data、error；art_write.data.writes 为实际批次写入，若最终 committed=false 则已回退 |
+| response.meta.execution_trace | runner 事件类型、chain_type、文本及该时刻 messages 快照；可能含后台文本和思考，不能当正文 |
+| response.meta.reasoning | provider 实际返回的思考；没有返回则为空 |
+| response.meta.replaces | 本轮撤回的旧 turn_id；失败事务不会正式撤回 |
+| metadata.current_turn | preset_name、user_preview；用于索引 |
 
-```
-data/plugin_data/astrbot_plugin_art/
-  llm_audit/<session_key>/
-    <turn_id>-playwright-<session_key>.json
-    <turn_id>-actor-<session_key>.json
-    <turn_id>-scribe-<session_key>.json
-  llm_audit_index/<session_key>.jsonl        # 每轮一行（stage=actor）
-```
+索引沿用 provider/model/preset、user/assistant preview、response_error、response_meta。它记录历史审计，不能作为有效故事历史。后续 committed=true 且 replaces 包含某轮，意味着该旧轮已撤回；`/art forget` 的审计以 agent stage、command=forget 记录。
 
-- `session_key` = `quote(session_id, safe="-_.@=")`；超过 120 字符时截断并追加 `--<sha256[:8]>`。真实 `session_id` 是 `event.unified_msg_origin`（如 `discord:GroupMessage:1554209468223328386`）。
-- `turn_id` = `{YYYYmmdd-HHMMSS}-{uuid4[:6]}`，一轮内三次调用共享它，因此三份文档同前缀。
-- 索引与账本目录是**兄弟**关系：`llm_audit_index` 由 `llm_audit` 的父目录推出。
+恢复数据位于会话 SQLite 的 art_meta/art_turns，不受审计开关或轮转上限控制。业务 journal 状态是 pending/committed/revoked/failed/command；只有 committed 可被普通 history 工具召回。reset 删除该 journal、切换空对话，保留旧审计。
 
-## 完整文档（每份 LLM 调用一个 JSON）
+旧三阶段文档沿用原字段：playwright 的 is_fallback/fallback_reason/tool_trace/director notes；actor 的 raw response/cleaned/stripped_sections/dynamic prompt；scribe 的 parsed_ok/parsed/writes。旧文件不会改写或迁移，离线工具按 stage 分派展示。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `audit_id` | str | `f"{turn_id}-{stage}-{session_key}"`，等于文件名去掉 `.json` |
-| `schema_version` | int | 目前恒为 `1` |
-| `created_at` | int | 请求时刻的 unix 秒 |
-| `turn_id` | str | 轮次身份，三阶段共享 |
-| `session_key` / `session_hash` | str | 可读键 / `sha256(session_id)[:16]`（旧账本回退用） |
-| `session_id` | str | 真实 unified_msg_origin |
-| `user_id` | str | `event.get_sender_id()` |
-| `stage` | str | `playwright` \| `actor` \| `scribe` |
-| `provider_id` | str | 该阶段实际使用的 provider id；空串 = 未解析到 |
-| `model` | str | 该阶段 provider 的模型名 |
-| `request.system_prompt` | str | 原样发出的 system prompt |
-| `request.contexts` | list | 原样发出的 contexts（数字/列表内容可能已被 provider 转换） |
-| `request.prompt` | str | 原样发出的当轮 prompt |
-| `assembly_trace` | dict | 按 stage 不同，见下 |
-| `audit_view` | dict | 按 stage 不同，见下 |
-| `response.text` | str | 模型原始输出（**未经任何清洗**） |
-| `response.error` | str | 调用失败原因；空串表示正常 |
-| `response.updated_at` | int | 回填时刻 |
-| `response.meta` | dict | 按 stage 不同，见下 |
-| `metadata.turn_id` | str | 与顶层一致 |
-| `metadata.current_turn` | dict | 供索引行读取：`preset_name` / `user_hash` / `user_preview`（`actor` 阶段才有） |
+UID 后台审计使用 user:<owner> 虚拟审计会话，stage=user_review。request 为独立维护协议、existing_entries、deleted_topics 与 new_evidence；response.text 是原始画像 JSON，不是角色正文。response.meta.published 是实际发布结果，base_revision 是起始版本。未发布的结果不进入 USER，也不改变前台。
 
-轮转：`llm_audit_max_files_per_session`（默认 200，`0` = 不清理）限制每 session 目录的 `.json` 数，超出按 mtime 删最旧。索引保留 `max(该值 × 2, 200)` 行。
+art_turns 新增 author_uid/author_name/platform/profile_input；重答修订输入与合并故事输入分开，避免重新分配旧用户证据。user_snapshots 保存当前对话冻结版本，users/index.db 保存跨会话来源。关闭审计不停止证据队列或恢复。
 
-## 各 stage 的字段差异
-
-### `playwright`（编剧子循环）
-
-`assembly_trace`：`max_steps`（5）、`provider_source`
-`audit_view`：`scene{location,time_of_day,scene_card,present_characters}`、`daily_tone`、
-`action_roll{grade,description}`（预抽行动成败）、`mid_scripts[]`、`short_hooks[]`、
-`pacing_preferences[]`、`player_profile[]`
-`response.meta`：
-- `is_fallback`（bool）— **true 表示本轮导演笔记是写死的兜底文本**
-- `fallback_reason` — `no_provider` \| `exception` \| `empty_completion`
-- `tool_trace[]` — `{tool, args, ok, result_hash, result_preview, result_chars}`
-
-### `actor`（演员主调用）
-
-`assembly_trace`：`system_prompt_chars`、`contexts_count`、`prompt_chars`、`dynamic_block_chars`
-`audit_view`：
-- `director_notes` — 本轮注入的导演笔记正文
-- `scene_transition_notice`、`scene_before` / `scene_after`（`{id,location,time_of_day}`）、`present_characters[]`
-- `preset`、`nsfw`、`relationship_premise`、`daily_tone`
-- `has_dynamic_block` — Layer 2 是否注入成功
-- **`stripped_sections[]`** — 被剥离的核心注入段标签：`skills_inventory` \| `tool_call_prompt` \| `tool_call_prompt_skills_like` \| `computer_use_workspace`。**为空且 prompt 里出现 `## Skills` 即说明剥离失效**
-
-`response.meta`：
-- `cleaned`（bool）、`cleaned_hash`、`cleaned_preview`、`chars_stripped`、`raw_chars`
-- `scene_switched_from`
-- **`response.text` 是清洗前的原始终稿**，玩家看到的是 `clean_narrative_reply` 处理后的版本
-
-### `scribe`（后台书记）
-
-`assembly_trace`：`max_steps`（1）、`tools`（`"none"`）、`provider_source`
-`audit_view`：`deterministic{...}`（历史字段，具体抽取已全部交给 LLM）、`actor_reply_chars`、`actor_reply_truncated`
-`response.meta`：
-- `parsed_ok`（bool）— JSON 解析是否成功
-- `parsed` — 解析出的完整 JSON
-- `parse_error` — 解析失败原因
-- `hook_reaction`
-- `writes[]` — **本轮实际落库的副作用**：`{category, key, value_preview}`
-  - `category` 取值：`promise` / `memory` / `tiff` / `gift` / `pacing_preference` /
-    `player_profile` / `script:mid` / `script:short:fade` / `script:short:accepted` / `scene_memory`
-
-## 索引行（`llm_audit_index/<session_key>.jsonl`）
-
-每轮一行，`stage` 恒为 `actor`（只在 actor 响应回填时追加）。字段：
-
-`schema_version`、`audit_id`、`turn_id`、`created_at`、`session_key`、`session_hash`、`session_id`、
-`stage`、`provider_id`、`model`、`preset_name`、`user_hash`、`user_preview`、
-`assistant_hash`、`assistant_preview`、`response_error`（bool）、`response_meta`
-
-**已知限制**：art 的 actor provider 由 AstrBot 主管线选定，插件无从得知，因此 `actor` 行的
-`provider_id` / `model` 通常为空。要判断某轮用了哪个模型，读该轮的 **playwright / scribe 文档**
-（它们自己解析 provider，会填 `model`）。
-
-## 与 RPG 账本的差异
-
-| | RPG | art |
-|---|---|---|
-| 一轮的 LLM 调用 | 1（narrator）+ 子系统 | **3**（playwright / actor / scribe），共享 `turn_id` |
-| `audit_id` | `{ts}-{stage}-{session_key}` | `{ts}-{token}-{stage}-{session_key}`（token 防同秒覆盖） |
-| 索引行条件 | `stage == "narrator"` | `stage == "actor"` |
-| 索引行 `style` 字段 | 有 | 无（art 无叙事风格系统） |
-| 写盘失败 | 上抛给调用方 | 内部吞掉返回 `None`（审计绝不影响出话） |
-
-API 形状一致（`session_key` / `content_hash` / `preview` / `load_turn_index` / `record_request` /
-`record_response`），另新增 `load_doc(audit_id, session_id)` 供按 id 回读。
+索引脚本默认 --stage story（agent/actor），可以单选 agent/user_review/legacy 或 all，先筛选再截取 --limit。展示 stage/provider/model，避免同一 model 名字掩盖不同 provider。详情默认故事会话，--stage user_review 用于后台虚拟会话，latest 按文件最后写入时间选择，避免同秒 UUID 字典序误选旧轮。--trace 展开 execution_trace；--full 完整展开所有展示字段，--json 返回原始完整文档。
