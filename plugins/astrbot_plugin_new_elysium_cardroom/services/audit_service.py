@@ -26,7 +26,7 @@ class AuditService:
         self.base_dir = Path(get_astrbot_plugin_data_path()) / PLUGIN_NAME / "audits"
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
-    def start_room(self, room: "GameRoom") -> None:
+    def start_room(self, room: GameRoom) -> None:
         if not getattr(self.config, "enable_cardroom_audit", True):
             return
         stamp = datetime.now(LOCAL_TZ).strftime("%Y%m%d_%H%M%S")
@@ -44,7 +44,7 @@ class AuditService:
         )
 
     def record(
-        self, room: "GameRoom", event: str, payload: dict[str, Any] | None = None
+        self, room: GameRoom, event: str, payload: dict[str, Any] | None = None
     ) -> None:
         if not getattr(self.config, "enable_cardroom_audit", True):
             return
@@ -65,8 +65,8 @@ class AuditService:
 
     def record_ai_decision(
         self,
-        room: "GameRoom",
-        player: "Player",
+        room: GameRoom,
+        player: Player,
         action_type: str,
         prompt: str,
         response: str,
@@ -98,7 +98,7 @@ class AuditService:
             },
         )
 
-    def finalize_room(self, room: "GameRoom", result: str = "") -> None:
+    def finalize_room(self, room: GameRoom, result: str = "") -> None:
         if not getattr(self.config, "enable_cardroom_audit", True):
             return
         if not getattr(room, "audit_summary_path", ""):

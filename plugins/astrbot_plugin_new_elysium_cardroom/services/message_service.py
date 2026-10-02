@@ -1,6 +1,7 @@
 """消息发送服务"""
 
-from typing import TYPE_CHECKING, Optional, List, Dict
+from typing import TYPE_CHECKING
+
 from astrbot.api import logger
 from astrbot.core.message.message_event_result import MessageChain
 
@@ -64,7 +65,7 @@ class MessageService:
         player_id: str,
         role_name: str,
         player_number: int,
-        teammates: List[str] = None,
+        teammates: list[str] = None,
     ) -> bool:
         """发送角色信息给玩家（纯文本）"""
         from ..roles import RoleFactory
@@ -130,9 +131,9 @@ class MessageService:
     async def announce_dawn(
         self,
         room: "GameRoom",
-        killed_name: Optional[str] = None,
+        killed_name: str | None = None,
         saved: bool = False,
-        poisoned_name: Optional[str] = None,
+        poisoned_name: str | None = None,
     ) -> bool:
         """公告天亮"""
         if saved:
@@ -205,9 +206,9 @@ class MessageService:
     async def announce_vote_result(
         self,
         room: "GameRoom",
-        vote_counts: Dict[str, int],
-        voters_map: Dict[str, List[str]],
-        exiled_name: Optional[str] = None,
+        vote_counts: dict[str, int],
+        voters_map: dict[str, list[str]],
+        exiled_name: str | None = None,
         is_pk: bool = False,
     ) -> bool:
         """公告投票结果（纯文本）"""

@@ -1,12 +1,13 @@
 """女巫行动 - 用药决策"""
 
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING
+
 from astrbot.api import logger
 
-from .base import BaseAction
-from ..validators import TargetValidator
 from ..context import ContextBuilder
-from ..prompts import ANTI_HALLUCINATION_PROTOCOL, ROLE_SOUL_SETTINGS, ROLE_PROMPTS
+from ..prompts import ANTI_HALLUCINATION_PROTOCOL, ROLE_PROMPTS, ROLE_SOUL_SETTINGS
+from ..validators import TargetValidator
+from .base import BaseAction
 
 if TYPE_CHECKING:
     from ....models import GameRoom, Player
@@ -21,8 +22,8 @@ class WitchAction(BaseAction):
         room: "GameRoom",
         can_save: bool,
         can_poison: bool,
-        killed_player_name: Optional[str] = None,
-    ) -> Tuple[str, Optional[int]]:
+        killed_player_name: str | None = None,
+    ) -> tuple[str, int | None]:
         """AI女巫决定用药"""
         context = ContextBuilder.build_context(player, room)
         role_key = ContextBuilder.get_role_key(player)

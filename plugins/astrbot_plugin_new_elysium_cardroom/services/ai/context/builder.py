@@ -2,9 +2,10 @@
 
 import re
 from typing import TYPE_CHECKING
+
 from astrbot.api import logger
 
-from ..prompts import PEACEFUL_NIGHT_TIPS, DOUBLE_DEATH_TIPS
+from ..prompts import DOUBLE_DEATH_TIPS, PEACEFUL_NIGHT_TIPS
 
 if TYPE_CHECKING:
     from ....models import GameRoom, Player

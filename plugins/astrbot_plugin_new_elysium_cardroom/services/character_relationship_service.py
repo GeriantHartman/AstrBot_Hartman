@@ -33,9 +33,7 @@ class CharacterRelationshipService:
     def relation_count(self) -> int:
         return len(self._relationships())
 
-    def hints_for(
-        self, player: "Player", room: "GameRoom", limit: int = 6
-    ) -> list[str]:
+    def hints_for(self, player: Player, room: GameRoom, limit: int = 6) -> list[str]:
         skill_id = self._skill_id(player)
         if not skill_id:
             return []
@@ -92,13 +90,13 @@ class CharacterRelationshipService:
         return matches
 
     @staticmethod
-    def _skill_id(player: "Player") -> str:
+    def _skill_id(player: Player) -> str:
         if not player.is_ai or not player.ai_config:
             return ""
         return player.ai_config.skill_id.strip()
 
     @staticmethod
-    def _format_hint(edge: dict[str, Any], other: "Player", is_reverse: bool) -> str:
+    def _format_hint(edge: dict[str, Any], other: Player, is_reverse: bool) -> str:
         label = str(edge.get("label", "")).strip()
         note_key = "target_note" if is_reverse else "source_note"
         note = str(edge.get(note_key) or edge.get("mutual_note") or "").strip()

@@ -1,12 +1,14 @@
 """夜晚命令处理"""
 
 import re
-from typing import TYPE_CHECKING, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING
+
 from astrbot.api.event import AstrMessageEvent
 
-from .base import BaseCommandHandler
 from ..models import GamePhase, Role
 from ..utils import cmd
+from .base import BaseCommandHandler
 
 if TYPE_CHECKING:
     pass

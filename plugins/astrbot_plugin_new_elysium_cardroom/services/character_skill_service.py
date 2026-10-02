@@ -119,10 +119,7 @@ class CharacterSkillService:
     def has_tabletop_adapter(self, skill_id: str, mode: str = "werewolf") -> bool:
         """角色卡是否有指定桌游模式的适配文件。"""
         adapter_file = MODE_ADAPTER_FILES.get(mode, MODE_ADAPTER_FILES["werewolf"])
-        return (
-            bool(skill_id)
-            and (self.skill_root / skill_id / adapter_file).exists()
-        )
+        return bool(skill_id) and (self.skill_root / skill_id / adapter_file).exists()
 
     def get_profile(
         self, skill_id: str, mode: str = "werewolf"

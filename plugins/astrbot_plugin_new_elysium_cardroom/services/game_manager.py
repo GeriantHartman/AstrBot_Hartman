@@ -1,23 +1,24 @@
 """游戏管理器"""
 
 import random
-from typing import Dict, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING
+
 from astrbot.api import logger
 
-from ..models import GameRoom, GameConfig, GamePhase, Player, Role, AIPlayerConfig
+from ..models import AIPlayerConfig, GameConfig, GamePhase, GameRoom, Player, Role
 from ..roles import RoleFactory
-from .message_service import MessageService
-from .ban_service import BanService
-from .victory_checker import VictoryChecker
-from .ai_reviewer import AIReviewer
 from .ai import AIPlayerService
-from .audit_service import AuditService
+from .ai_reviewer import AIReviewer
 from .asset_manifest_service import AssetManifestService
+from .audit_service import AuditService
+from .ban_service import BanService
 from .character_memory_service import CharacterMemoryService
 from .character_relationship_service import CharacterRelationshipService
 from .character_skill_service import CharacterSkillService
+from .message_service import MessageService
 from .room_state_storage_service import RoomStateStorageService
 from .tabletop_behavior_service import TabletopBehaviorService
+from .victory_checker import VictoryChecker
 
 if TYPE_CHECKING:
     from astrbot.api.star import Context
@@ -29,7 +30,7 @@ class GameManager:
     def __init__(self, context: "Context", config: GameConfig):
         self.context = context
         self.config = config
-        self.rooms: Dict[str, GameRoom] = {}  # {群ID: 房间}
+        self.rooms: dict[str, GameRoom] = {}  # {群ID: 房间}
 
         # 初始化服务
         self.message_service = MessageService(context)
@@ -56,7 +57,7 @@ class GameManager:
 
     # ========== 房间管理 ==========
 
-    def get_room(self, group_id: str) -> Optional[GameRoom]:
+    def get_room(self, group_id: str) -> GameRoom | None:
         """获取房间"""
         return self.rooms.get(group_id)
 
@@ -90,9 +91,7 @@ class GameManager:
             if room.phase != GamePhase.FINISHED:
                 self.save_room_state(room)
 
-    def get_room_by_player(
-        self, player_id: str
-    ) -> Tuple[Optional[str], Optional[GameRoom]]:
+    def get_room_by_player(self, player_id: str) -> tuple[str | None, GameRoom | None]:
         """通过玩家ID查找房间"""
         for group_id, room in self.rooms.items():
             if room.is_player_in_room(player_id):
@@ -393,7 +392,7 @@ class GameManager:
 
     # ========== 夜晚流程 ==========
 
-    async def process_night_kill(self, room: GameRoom) -> Optional[str]:
+    async def process_night_kill(self, room: GameRoom) -> str | None:
         """处理狼人投票结果，返回被杀玩家ID"""
         votes = room.vote_state.night_votes
         votes_snapshot = dict(votes)
@@ -402,7 +401,7 @@ class GameManager:
             return None
 
         # 统计票数
-        vote_counts: Dict[str, int] = {}
+        vote_counts: dict[str, int] = {}
         for target_id in votes.values():
             vote_counts[target_id] = vote_counts.get(target_id, 0) + 1
 
@@ -482,7 +481,7 @@ class GameManager:
 
     # ========== 白天流程 ==========
 
-    async def process_day_vote(self, room: GameRoom) -> Tuple[Optional[str], bool]:
+    async def process_day_vote(self, room: GameRoom) -> tuple[str | None, bool]:
         """
         处理白天投票结果
 
@@ -495,7 +494,7 @@ class GameManager:
             return None, False
 
         # 统计票数（排除弃票）
-        vote_counts: Dict[str, int] = {}
+        vote_counts: dict[str, int] = {}
         for target_id in votes.values():
             if target_id == "ABSTAIN":
                 continue  # 跳过弃票

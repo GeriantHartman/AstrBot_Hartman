@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ..utils import cmd, table_name
-from .constants import CARD_SPECS, COLORS, COLOR_LABELS, NOBLE_SPECS, TOKEN_COLORS
+from .constants import CARD_SPECS, COLOR_LABELS, COLORS, NOBLE_SPECS, TOKEN_COLORS
 from .engine import SplendorEngine
 from .models import PHASE_FINISHED, PHASE_PLAYING, PHASE_WAITING, SplendorRoom
 
@@ -122,7 +122,9 @@ class SplendorTextUI:
             )
 
         if room.phase == PHASE_FINISHED and room.winner_ids:
-            winners = "、".join(room.players[player_id].display_name for player_id in room.winner_ids)
+            winners = "、".join(
+                room.players[player_id].display_name for player_id in room.winner_ids
+            )
             lines.append(f"\n胜者：{winners}")
         return "\n".join(lines)
 

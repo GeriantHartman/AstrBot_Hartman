@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, List
+from typing import Any
 
 from astrbot.core.utils.astrbot_path import get_astrbot_skills_path
 
@@ -63,7 +63,7 @@ class GameConfig:
     # AI玩家配置
     ai_player_model: str = ""
     character_skill_root: str = field(default_factory=default_character_skill_root)
-    default_ai_skill_roster: List[str] = field(
+    default_ai_skill_roster: list[str] = field(
         default_factory=lambda: DEFAULT_AI_SKILL_ROSTER.copy()
     )
     enable_character_skill_ai: bool = True
@@ -81,7 +81,7 @@ class GameConfig:
     audit_prompt_max_chars: int = 12000
     audit_response_max_chars: int = 4000
 
-    def get_roles_pool(self) -> List[Role]:
+    def get_roles_pool(self) -> list[Role]:
         """获取角色池"""
         return (
             [Role.WEREWOLF] * self.werewolf_count
@@ -125,7 +125,7 @@ class GameConfig:
         return " + ".join(god_roles)
 
     @staticmethod
-    def normalize_roster(value: Any) -> List[str]:
+    def normalize_roster(value: Any) -> list[str]:
         """兼容旧版逗号字符串和新版列表配置。"""
         if value is None:
             return DEFAULT_AI_SKILL_ROSTER.copy()

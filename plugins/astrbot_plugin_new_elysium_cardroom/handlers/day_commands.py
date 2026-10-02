@@ -1,11 +1,12 @@
 """白天命令处理"""
 
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
+
 from astrbot.api.event import AstrMessageEvent
 
-from .base import BaseCommandHandler
 from ..models import GamePhase
 from ..utils import cmd, table_name
+from .base import BaseCommandHandler
 
 
 class DayCommandHandler(BaseCommandHandler):
@@ -174,7 +175,9 @@ class DayCommandHandler(BaseCommandHandler):
 
         # 记录投票
         room.vote_state.day_votes[player_id] = target_id
-        self.game_manager.attach_event_transport(room, event.unified_msg_origin, event.bot)
+        self.game_manager.attach_event_transport(
+            room, event.unified_msg_origin, event.bot
+        )
 
         # 记录日志
         voter = room.get_player(player_id)

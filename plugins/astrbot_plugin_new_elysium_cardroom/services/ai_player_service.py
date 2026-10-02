@@ -3,7 +3,8 @@
 import asyncio
 import random
 import re
-from typing import Optional, List, Dict, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING
+
 from astrbot.api import logger
 
 if TYPE_CHECKING:
@@ -1124,8 +1125,8 @@ class AIPlayerService:
 
     def __init__(self, context):
         self.context = context
-        self._retry_counts: Dict[str, int] = {}
-        self._player_personalities: Dict[str, str] = {}  # 玩家性格缓存
+        self._retry_counts: dict[str, int] = {}
+        self._player_personalities: dict[str, str] = {}  # 玩家性格缓存
 
     def assign_personality(self, player_id: str) -> str:
         """预分配玩家性格并返回中文名称"""
@@ -1155,7 +1156,7 @@ class AIPlayerService:
         max_retries: int = 3,
         retry_delay: float = 1.0,
         timeout: float = None,
-    ) -> Optional[str]:
+    ) -> str | None:
         """调用LLM获取AI决策（带重试和超时保护）"""
         model_id = ""
         if player.ai_config:
@@ -1306,9 +1307,9 @@ class AIPlayerService:
             # 正常情况好人不需要特殊战术指令
             return ""
 
-    def _analyze_player_behaviors(self, room: "GameRoom") -> Dict[str, List[str]]:
+    def _analyze_player_behaviors(self, room: "GameRoom") -> dict[str, list[str]]:
         """分析所有玩家的行为并生成标签"""
-        player_tags: Dict[str, List[str]] = {}
+        player_tags: dict[str, list[str]] = {}
 
         for p in room.get_alive_players():
             tags = []
@@ -1658,7 +1659,7 @@ class AIPlayerService:
 
     async def decide_werewolf_kill(
         self, player: "Player", room: "GameRoom"
-    ) -> Optional[int]:
+    ) -> int | None:
         """AI狼人选择击杀目标"""
         context = self._build_context(player, room)
         role_key = self._get_role_key(player)
@@ -1683,7 +1684,7 @@ class AIPlayerService:
 
     async def decide_werewolf_chat(
         self, player: "Player", room: "GameRoom"
-    ) -> Optional[str]:
+    ) -> str | None:
         """AI狼人生成密谋消息"""
         context = self._build_context(player, room)
 
@@ -1698,9 +1699,7 @@ class AIPlayerService:
 
     # ==================== 预言家行动 ====================
 
-    async def decide_seer_check(
-        self, player: "Player", room: "GameRoom"
-    ) -> Optional[int]:
+    async def decide_seer_check(self, player: "Player", room: "GameRoom") -> int | None:
         """AI预言家选择验人目标"""
         context = self._build_context(player, room)
         role_key = self._get_role_key(player)
@@ -1729,8 +1728,8 @@ class AIPlayerService:
         room: "GameRoom",
         can_save: bool,
         can_poison: bool,
-        killed_player_name: Optional[str] = None,
-    ) -> Tuple[str, Optional[int]]:
+        killed_player_name: str | None = None,
+    ) -> tuple[str, int | None]:
         """AI女巫决定用药"""
         context = self._build_context(player, room)
         role_key = self._get_role_key(player)
@@ -1768,7 +1767,7 @@ class AIPlayerService:
 
     async def decide_hunter_shoot(
         self, player: "Player", room: "GameRoom"
-    ) -> Optional[int]:
+    ) -> int | None:
         """AI猎人决定开枪目标"""
         context = self._build_context(player, room)
         role_key = self._get_role_key(player)
@@ -1889,8 +1888,8 @@ class AIPlayerService:
         player: "Player",
         room: "GameRoom",
         is_pk: bool = False,
-        pk_candidates: List[str] = None,
-    ) -> Tuple[str, Optional[int]]:
+        pk_candidates: list[str] = None,
+    ) -> tuple[str, int | None]:
         """AI生成投票决策"""
         context = self._build_context(player, room)
         context += "\n" + self._get_situation_awareness(room)

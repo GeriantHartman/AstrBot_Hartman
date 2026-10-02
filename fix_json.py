@@ -2,7 +2,6 @@ import json
 
 with open(
     r"e:\agentic-rpg\AstrBot\plugins\astrbot_plugin_agentic_RPG\presets\elysium-genesis.json",
-    "r",
     encoding="utf-8",
 ) as f:
     content = f.read()
@@ -24,7 +23,6 @@ with open(
 try:
     with open(
         r"e:\agentic-rpg\AstrBot\plugins\astrbot_plugin_agentic_RPG\presets\elysium-genesis.json",
-        "r",
         encoding="utf-8",
     ) as f:
         data = json.load(f)

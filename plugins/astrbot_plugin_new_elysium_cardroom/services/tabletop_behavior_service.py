@@ -67,11 +67,11 @@ PROFILES = {
 class TabletopBehaviorService:
     """Rolls a prompt-level posture for character-card actions."""
 
-    def __init__(self, config: "GameConfig"):
+    def __init__(self, config: GameConfig):
         self.config = config
 
     def roll_for(
-        self, player: "Player", room: "GameRoom", action_type: str
+        self, player: Player, room: GameRoom, action_type: str
     ) -> BehaviorRoll | None:
         if not getattr(self.config, "enable_character_behavior_rolls", True):
             return None
@@ -102,7 +102,7 @@ class TabletopBehaviorService:
         return weights[-1][0]
 
     @staticmethod
-    def _seed(player: "Player", room: "GameRoom", action_type: str) -> str:
+    def _seed(player: Player, room: GameRoom, action_type: str) -> str:
         raw = (
             f"{room.group_id}:{room.current_round}:{room.phase.value}:"
             f"{player.id}:{player.number}:{action_type}"

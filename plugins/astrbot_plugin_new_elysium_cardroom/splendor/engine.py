@@ -11,8 +11,8 @@ from typing import Any
 
 from .constants import (
     CARD_SPECS,
-    COLORS,
     COLOR_LABELS,
+    COLORS,
     MARKET_SIZE_PER_TIER,
     NOBLE_COUNT_BY_PLAYER_COUNT,
     NOBLE_SPECS,
@@ -21,7 +21,6 @@ from .constants import (
     TOKEN_COLORS,
     TOKEN_LIMIT,
     WIN_SCORE,
-    CardSpec,
 )
 from .models import PHASE_FINISHED, PHASE_PLAYING, SplendorPlayer, SplendorRoom
 
@@ -105,7 +104,7 @@ class SplendorEngine:
             if room.bank.get(color, 0) < 4:
                 return ActionResult(
                     False,
-                    [f"拿两枚同色宝石时，该颜色银行中必须至少有 4 枚。"],
+                    ["拿两枚同色宝石时，该颜色银行中必须至少有 4 枚。"],
                 )
         else:
             return ActionResult(False, ["拿宝石必须是 3 枚不同色，或 2 枚同色。"])
@@ -235,7 +234,9 @@ class SplendorEngine:
         room.log(messages[0])
 
         eligible_nobles = [
-            noble_id for noble_id in room.nobles if self.can_claim_noble(player, noble_id)
+            noble_id
+            for noble_id in room.nobles
+            if self.can_claim_noble(player, noble_id)
         ]
         if len(eligible_nobles) == 1:
             messages.append(self._claim_noble(room, player, eligible_nobles[0]))
@@ -277,14 +278,18 @@ class SplendorEngine:
         if name == "take":
             return self.take_tokens(room, player_id, list(action.get("colors") or []))
         if name == "discard":
-            return self.discard_tokens(room, player_id, list(action.get("colors") or []))
+            return self.discard_tokens(
+                room, player_id, list(action.get("colors") or [])
+            )
         if name == "reserve":
             return self.reserve_card(room, player_id, str(action.get("selector") or ""))
         if name == "buy":
             return self.buy_card(room, player_id, str(action.get("selector") or ""))
         if name == "choose_noble":
             return self.choose_noble(
-                room, player_id, str(action.get("noble_id") or action.get("selector") or "")
+                room,
+                player_id,
+                str(action.get("noble_id") or action.get("selector") or ""),
             )
         return ActionResult(False, ["无法识别这个璀璨宝石动作。"])
 
@@ -375,9 +380,7 @@ class SplendorEngine:
             gold_needed += max(0, amount - player.tokens.get(color, 0))
         return gold_needed <= player.tokens.get("gold", 0)
 
-    def discounted_cost(
-        self, player: SplendorPlayer, card_id: str
-    ) -> dict[str, int]:
+    def discounted_cost(self, player: SplendorPlayer, card_id: str) -> dict[str, int]:
         spec = CARD_SPECS[card_id]
         return {
             color: max(0, spec.cost[color] - player.bonuses.get(color, 0))
@@ -386,7 +389,7 @@ class SplendorEngine:
 
     def payment_for(self, player: SplendorPlayer, card_id: str) -> dict[str, int]:
         due = self.discounted_cost(player, card_id)
-        payment = {color: 0 for color in COLORS}
+        payment = dict.fromkeys(COLORS, 0)
         payment["gold"] = 0
         for color in COLORS:
             colored = min(player.tokens.get(color, 0), due[color])
@@ -403,7 +406,9 @@ class SplendorEngine:
         )
 
     def score_for(self, player: SplendorPlayer) -> int:
-        card_points = sum(CARD_SPECS[card_id].points for card_id in player.purchased_cards)
+        card_points = sum(
+            CARD_SPECS[card_id].points for card_id in player.purchased_cards
+        )
         noble_points = sum(NOBLE_SPECS[noble_id].points for noble_id in player.nobles)
         return card_points + noble_points
 
@@ -526,7 +531,9 @@ class SplendorEngine:
         if player.token_total > TOKEN_LIMIT:
             room.pending_discard_player_id = player.id
             excess = player.token_total - TOKEN_LIMIT
-            messages.append(f"你现在有 {player.token_total} 枚宝石，需要丢弃 {excess} 枚。")
+            messages.append(
+                f"你现在有 {player.token_total} 枚宝石，需要丢弃 {excess} 枚。"
+            )
             return ActionResult(True, messages)
         return self._finish_turn(room, player, messages)
 
@@ -546,7 +553,9 @@ class SplendorEngine:
             messages.extend(self._finish_game(room))
             return ActionResult(True, messages, game_finished=True)
 
-        room.current_player_index = (room.current_player_index + 1) % len(room.turn_order)
+        room.current_player_index = (room.current_player_index + 1) % len(
+            room.turn_order
+        )
         current = room.current_player
         if current:
             messages.append(f"轮到 {current.display_name}。")
@@ -554,7 +563,10 @@ class SplendorEngine:
 
     def _finish_game(self, room: SplendorRoom) -> list[str]:
         room.phase = PHASE_FINISHED
-        scores = {player_id: self.score_for(player) for player_id, player in room.players.items()}
+        scores = {
+            player_id: self.score_for(player)
+            for player_id, player in room.players.items()
+        }
         high_score = max(scores.values()) if scores else 0
         contenders = [
             player_id for player_id, score in scores.items() if score == high_score
@@ -568,7 +580,9 @@ class SplendorEngine:
             if room.players[player_id].card_count == fewest_cards
         ]
         room.winner_ids = winners
-        winner_names = "、".join(room.players[player_id].display_name for player_id in winners)
+        winner_names = "、".join(
+            room.players[player_id].display_name for player_id in winners
+        )
         room.log(f"璀璨宝石结束，胜者：{winner_names}。")
         return [
             "最终轮结束，璀璨宝石结算。",
@@ -585,13 +599,12 @@ class SplendorEngine:
         return message
 
     def _draw_to_market(self, room: SplendorRoom, tier: int) -> None:
-        while (
-            len(room.market[tier]) < MARKET_SIZE_PER_TIER
-            and room.decks[tier]
-        ):
+        while len(room.market[tier]) < MARKET_SIZE_PER_TIER and room.decks[tier]:
             room.market[tier].append(room.decks[tier].pop(0))
 
-    def _discard_actions(self, player: SplendorPlayer, count: int) -> list[dict[str, Any]]:
+    def _discard_actions(
+        self, player: SplendorPlayer, count: int
+    ) -> list[dict[str, Any]]:
         if count <= 0:
             return []
         token_pool: list[str] = []
@@ -615,9 +628,7 @@ class SplendorEngine:
             )
         return actions
 
-    def _suggest_discards(
-        self, player: SplendorPlayer, count: int
-    ) -> list[str]:
+    def _suggest_discards(self, player: SplendorPlayer, count: int) -> list[str]:
         colors_by_amount = sorted(
             (color for color, amount in player.tokens.items() if amount > 0),
             key=lambda color: (
@@ -629,7 +640,9 @@ class SplendorEngine:
         )
         discards: list[str] = []
         for color in colors_by_amount:
-            while player.tokens[color] > discards.count(color) and len(discards) < count:
+            while (
+                player.tokens[color] > discards.count(color) and len(discards) < count
+            ):
                 discards.append(color)
         return discards
 

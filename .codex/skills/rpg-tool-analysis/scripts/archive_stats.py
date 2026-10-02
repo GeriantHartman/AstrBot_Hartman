@@ -9,10 +9,17 @@ from pathlib import Path
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--stats", default="data/plugin_data/astrbot_plugin_agentic_rpg/rpg_stats.json")
-    parser.add_argument("--archive-dir", default="data/plugin_data/astrbot_plugin_agentic_rpg/tool_analysis_archives")
+    parser.add_argument(
+        "--stats", default="data/plugin_data/astrbot_plugin_agentic_rpg/rpg_stats.json"
+    )
+    parser.add_argument(
+        "--archive-dir",
+        default="data/plugin_data/astrbot_plugin_agentic_rpg/tool_analysis_archives",
+    )
     parser.add_argument("--label", default="baseline")
-    parser.add_argument("--reset", action="store_true", help="归档后清空当前 rpg_stats.json；谨慎使用")
+    parser.add_argument(
+        "--reset", action="store_true", help="归档后清空当前 rpg_stats.json；谨慎使用"
+    )
     args = parser.parse_args()
 
     stats_path = Path(args.stats)
@@ -23,9 +30,17 @@ def main() -> int:
     shutil.copy2(stats_path, archive_path)
 
     if args.reset:
-        stats_path.write_text(json.dumps({"sessions": {}}, ensure_ascii=False, indent=2), encoding="utf-8")
+        stats_path.write_text(
+            json.dumps({"sessions": {}}, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
-    print(json.dumps({"归档文件": str(archive_path), "已清空当前统计": bool(args.reset)}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {"归档文件": str(archive_path), "已清空当前统计": bool(args.reset)},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

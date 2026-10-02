@@ -8,7 +8,6 @@ from typing import Any
 from ..models import AIPlayerConfig
 from .constants import COLORS, TOKEN_COLORS
 
-
 PHASE_WAITING = "waiting"
 PHASE_PLAYING = "playing"
 PHASE_FINISHED = "finished"
@@ -16,7 +15,7 @@ PHASE_FINISHED = "finished"
 
 def empty_color_counts(include_gold: bool = False) -> dict[str, int]:
     colors = TOKEN_COLORS if include_gold else COLORS
-    return {color: 0 for color in colors}
+    return dict.fromkeys(colors, 0)
 
 
 @dataclass
@@ -61,7 +60,7 @@ class SplendorPlayer:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "SplendorPlayer":
+    def from_dict(cls, data: dict[str, Any]) -> SplendorPlayer:
         player = cls(
             id=str(data.get("id") or ""),
             name=str(data.get("name") or ""),
@@ -119,12 +118,8 @@ class SplendorRoom:
     turn_order: list[str] = field(default_factory=list)
     current_player_index: int = 0
     bank: dict[str, int] = field(default_factory=lambda: empty_color_counts(True))
-    decks: dict[int, list[str]] = field(
-        default_factory=lambda: {1: [], 2: [], 3: []}
-    )
-    market: dict[int, list[str]] = field(
-        default_factory=lambda: {1: [], 2: [], 3: []}
-    )
+    decks: dict[int, list[str]] = field(default_factory=lambda: {1: [], 2: [], 3: []})
+    market: dict[int, list[str]] = field(default_factory=lambda: {1: [], 2: [], 3: []})
     nobles: list[str] = field(default_factory=list)
     pending_discard_player_id: str = ""
     pending_noble_player_id: str = ""
@@ -200,7 +195,7 @@ class SplendorRoom:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "SplendorRoom":
+    def from_dict(cls, data: dict[str, Any]) -> SplendorRoom:
         room = cls(
             group_id=str(data.get("group_id") or ""),
             creator_id=str(data.get("creator_id") or ""),
@@ -219,9 +214,13 @@ class SplendorRoom:
         room.decks = _normalize_card_piles(data.get("decks"))
         room.market = _normalize_card_piles(data.get("market"))
         room.nobles = [str(item) for item in data.get("nobles", [])]
-        room.pending_discard_player_id = str(data.get("pending_discard_player_id") or "")
+        room.pending_discard_player_id = str(
+            data.get("pending_discard_player_id") or ""
+        )
         room.pending_noble_player_id = str(data.get("pending_noble_player_id") or "")
-        room.pending_noble_ids = [str(item) for item in data.get("pending_noble_ids", [])]
+        room.pending_noble_ids = [
+            str(item) for item in data.get("pending_noble_ids", [])
+        ]
         room.final_round_active = bool(data.get("final_round_active", False))
         room.final_round_trigger_player_id = str(
             data.get("final_round_trigger_player_id") or ""

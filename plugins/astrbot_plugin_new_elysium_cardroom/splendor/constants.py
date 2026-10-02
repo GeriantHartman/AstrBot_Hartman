@@ -6,7 +6,6 @@ import csv
 from dataclasses import dataclass
 from io import StringIO
 
-
 COLORS = ("white", "blue", "green", "red", "black")
 TOKEN_COLORS = COLORS + ("gold",)
 

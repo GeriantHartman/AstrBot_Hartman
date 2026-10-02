@@ -1,12 +1,13 @@
 """猎人行动 - 开枪决策"""
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
+
 from astrbot.api import logger
 
-from .base import BaseAction
-from ..validators import TargetValidator
 from ..context import ContextBuilder
-from ..prompts import ANTI_HALLUCINATION_PROTOCOL, ROLE_SOUL_SETTINGS, ROLE_PROMPTS
+from ..prompts import ANTI_HALLUCINATION_PROTOCOL, ROLE_PROMPTS, ROLE_SOUL_SETTINGS
+from ..validators import TargetValidator
+from .base import BaseAction
 
 if TYPE_CHECKING:
     from ....models import GameRoom, Player
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
 class HunterAction(BaseAction):
     """猎人行动"""
 
-    async def decide_shoot(self, player: "Player", room: "GameRoom") -> Optional[int]:
+    async def decide_shoot(self, player: "Player", room: "GameRoom") -> int | None:
         """AI猎人决定开枪目标"""
         context = ContextBuilder.build_context(player, room)
         role_key = ContextBuilder.get_role_key(player)

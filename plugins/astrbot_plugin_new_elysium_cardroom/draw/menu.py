@@ -1,27 +1,29 @@
 """狼人杀菜单图片生成"""
 
 import math
+
 from PIL import Image, ImageDraw
+
+from ..utils import get_command_prefix
+from .gradient_utils import create_vertical_gradient
 from .styles import (
-    load_font,
-    COLOR_BACKGROUND_TOP,
     COLOR_BACKGROUND_BOT,
-    COLOR_TITLE,
-    COLOR_CMD,
-    COLOR_CMD_NIGHT,
-    COLOR_CMD_DAY,
-    COLOR_TEXT_DIM,
+    COLOR_BACKGROUND_TOP,
+    COLOR_BLOOD_MOON,
     COLOR_CARD_BG,
     COLOR_CARD_BORDER,
-    COLOR_BLOOD_MOON,
-    COLOR_MOONLIGHT,
-    COLOR_WEREWOLF,
-    COLOR_SEER,
-    COLOR_WITCH,
+    COLOR_CMD,
+    COLOR_CMD_DAY,
+    COLOR_CMD_NIGHT,
     COLOR_HUNTER,
+    COLOR_MOONLIGHT,
+    COLOR_SEER,
+    COLOR_TEXT_DIM,
+    COLOR_TITLE,
+    COLOR_WEREWOLF,
+    COLOR_WITCH,
+    load_font,
 )
-from .gradient_utils import create_vertical_gradient
-from ..utils import get_command_prefix
 
 
 def draw_menu_image(total_players: int = 9) -> Image.Image:

@@ -5,19 +5,20 @@
 """
 
 import random
-from typing import Optional, List, Tuple, Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING
+
 from astrbot.api import logger
 
-from .prompts import PERSONALITY_TEMPLATES, PERSONALITY_NAMES
+from ...utils import build_player_name_map, operation_label
 from .actions import (
-    WerewolfAction,
-    SeerAction,
-    WitchAction,
     HunterAction,
+    SeerAction,
     SpeechAction,
     VoteAction,
+    WerewolfAction,
+    WitchAction,
 )
-from ...utils import build_player_name_map, operation_label
+from .prompts import PERSONALITY_NAMES, PERSONALITY_TEMPLATES
 
 if TYPE_CHECKING:
     from ...models import GameRoom, Player
@@ -29,8 +30,8 @@ class AIPlayerService:
     def __init__(self, context, character_relationship_service=None):
         self.context = context
         self.character_relationship_service = character_relationship_service
-        self._retry_counts: Dict[str, int] = {}
-        self._player_personalities: Dict[str, str] = {}
+        self._retry_counts: dict[str, int] = {}
+        self._player_personalities: dict[str, str] = {}
 
         # 初始化各行动模块
         self._werewolf_action = WerewolfAction(context)
@@ -54,21 +55,19 @@ class AIPlayerService:
 
     async def decide_werewolf_kill(
         self, player: "Player", room: "GameRoom"
-    ) -> Optional[int]:
+    ) -> int | None:
         """AI狼人选择击杀目标"""
         return await self._werewolf_action.decide_kill(player, room)
 
     async def decide_werewolf_chat(
         self, player: "Player", room: "GameRoom"
-    ) -> Optional[str]:
+    ) -> str | None:
         """AI狼人生成密谋消息"""
         return await self._werewolf_action.decide_chat(player, room)
 
     # ==================== 预言家行动 ====================
 
-    async def decide_seer_check(
-        self, player: "Player", room: "GameRoom"
-    ) -> Optional[int]:
+    async def decide_seer_check(self, player: "Player", room: "GameRoom") -> int | None:
         """AI预言家选择验人目标"""
         return await self._seer_action.decide_check(player, room)
 
@@ -80,8 +79,8 @@ class AIPlayerService:
         room: "GameRoom",
         can_save: bool,
         can_poison: bool,
-        killed_player_name: Optional[str] = None,
-    ) -> Tuple[str, Optional[int]]:
+        killed_player_name: str | None = None,
+    ) -> tuple[str, int | None]:
         """AI女巫决定用药"""
         return await self._witch_action.decide_action(
             player, room, can_save, can_poison, killed_player_name
@@ -91,7 +90,7 @@ class AIPlayerService:
 
     async def decide_hunter_shoot(
         self, player: "Player", room: "GameRoom"
-    ) -> Optional[int]:
+    ) -> int | None:
         """AI猎人决定开枪目标"""
         return await self._hunter_action.decide_shoot(player, room)
 
@@ -110,8 +109,8 @@ class AIPlayerService:
         player: "Player",
         room: "GameRoom",
         is_pk: bool = False,
-        pk_candidates: List[str] = None,
-    ) -> Tuple[str, Optional[int]]:
+        pk_candidates: list[str] = None,
+    ) -> tuple[str, int | None]:
         """AI生成投票决策"""
         return await self._vote_action.decide_vote(player, room, is_pk, pk_candidates)
 

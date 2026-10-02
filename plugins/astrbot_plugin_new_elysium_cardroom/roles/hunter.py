@@ -1,13 +1,14 @@
 """猎人角色"""
 
-from enum import Enum
 from dataclasses import dataclass
-from typing import List, Optional, TYPE_CHECKING
-from .base import BaseRole
+from enum import Enum
+from typing import TYPE_CHECKING
+
 from ..utils import cmd
+from .base import BaseRole
 
 if TYPE_CHECKING:
-    from ..models import Player, GameRoom, Role
+    from ..models import GameRoom, Player, Role
 
 
 class HunterDeathType(Enum):
@@ -23,8 +24,8 @@ class HunterState:
     """猎人状态"""
 
     has_shot: bool = False  # 是否已开枪
-    pending_shot_player_id: Optional[str] = None  # 待开枪的猎人ID
-    death_type: Optional[HunterDeathType] = None  # 死亡方式
+    pending_shot_player_id: str | None = None  # 待开枪的猎人ID
+    death_type: HunterDeathType | None = None  # 死亡方式
 
     def can_shoot(self) -> bool:
         """判断是否可以开枪"""
@@ -85,7 +86,7 @@ class HunterRole(BaseRole):
             f"示例：{cmd('开枪')} 1"
         )
 
-    def get_night_commands(self) -> List[str]:
+    def get_night_commands(self) -> list[str]:
         return [f"{cmd('开枪')} 编号"]
 
     def get_death_prompt(self, death_type: HunterDeathType) -> str:

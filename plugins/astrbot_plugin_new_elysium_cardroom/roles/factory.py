@@ -1,12 +1,13 @@
 """角色工厂"""
 
-from typing import Dict, Type, TYPE_CHECKING
+from typing import TYPE_CHECKING
+
 from .base import BaseRole
-from .werewolf import WerewolfRole
-from .seer import SeerRole
-from .witch import WitchRole
 from .hunter import HunterRole
+from .seer import SeerRole
 from .villager import VillagerRole
+from .werewolf import WerewolfRole
+from .witch import WitchRole
 
 if TYPE_CHECKING:
     from ..models import GameRoom, Player, Role
@@ -15,8 +16,8 @@ if TYPE_CHECKING:
 class RoleFactory:
     """角色工厂"""
 
-    _role_classes: Dict["Role", Type[BaseRole]] = {}
-    _instances: Dict["Role", BaseRole] = {}
+    _role_classes: dict["Role", type[BaseRole]] = {}
+    _instances: dict["Role", BaseRole] = {}
 
     @classmethod
     def _init_role_classes(cls) -> None:

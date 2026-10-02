@@ -1,7 +1,7 @@
 """玩家数据模型"""
 
 from dataclasses import dataclass
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from .ai_player import AIPlayerConfig, AIPlayerContext
@@ -16,7 +16,7 @@ class Player:
     id: str  # 玩家ID（QQ号，AI玩家使用 ai_{name} 格式）
     name: str  # 玩家昵称
     number: int = 0  # 玩家编号（1-9）
-    role: Optional[Role] = None  # 角色
+    role: Role | None = None  # 角色
     is_alive: bool = True  # 是否存活
     original_card: str = ""  # 原始群昵称（用于恢复）
 

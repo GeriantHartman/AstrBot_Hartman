@@ -3,13 +3,13 @@
 import asyncio
 import random
 from typing import TYPE_CHECKING
+
 from astrbot.api import logger
 
-from .base import BasePhase
 from ..models import GamePhase, Role
-from ..roles import HunterDeathType
+from ..roles import HunterDeathType, WitchRole
 from ..services import BanService
-from ..roles import WitchRole
+from .base import BasePhase
 
 if TYPE_CHECKING:
     from ..models import GameRoom

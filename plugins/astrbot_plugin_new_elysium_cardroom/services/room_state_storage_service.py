@@ -24,7 +24,6 @@ from ..models import (
 )
 from ..roles import HunterDeathType, HunterState, WitchState
 
-
 PLUGIN_NAME = "astrbot_plugin_new_elysium_cardroom"
 LOCAL_TZ = timezone(timedelta(hours=8))
 
@@ -179,9 +178,7 @@ class RoomStateStorageService:
         room.witch_state = self._witch_state_from_dict(data.get("witch_state"))
         room.hunter_state = self._hunter_state_from_dict(data.get("hunter_state"))
         room.vote_state = self._vote_state_from_dict(data.get("vote_state"))
-        room.speaking_state = self._speaking_state_from_dict(
-            data.get("speaking_state")
-        )
+        room.speaking_state = self._speaking_state_from_dict(data.get("speaking_state"))
         room.banned_player_ids = {
             str(player_id) for player_id in data.get("banned_player_ids", [])
         }

@@ -1,6 +1,7 @@
 """AI复盘服务"""
 
 from typing import TYPE_CHECKING
+
 from astrbot.api import logger
 
 if TYPE_CHECKING:

@@ -1,6 +1,7 @@
 """狼人杀插件样式配置 - 暗夜狼嚎主题"""
 
 import os
+
 from PIL import ImageFont
 
 # --- 基础配置 ---
@@ -73,7 +74,7 @@ def load_font(size: int) -> ImageFont.FreeTypeFont:
     try:
         if os.path.exists(FONT_PATH_BOLD):
             return ImageFont.truetype(FONT_PATH_BOLD, size)
-    except IOError:
+    except OSError:
         pass
 
     # 尝试系统字体
@@ -87,7 +88,7 @@ def load_font(size: int) -> ImageFont.FreeTypeFont:
         try:
             if os.path.exists(font_path):
                 return ImageFont.truetype(font_path, size)
-        except IOError:
+        except OSError:
             continue
 
     # 最后使用默认字体

@@ -1,10 +1,11 @@
 """平民角色"""
 
-from typing import List, TYPE_CHECKING
+from typing import TYPE_CHECKING
+
 from .base import BaseRole
 
 if TYPE_CHECKING:
-    from ..models import Player, GameRoom, Role
+    from ..models import GameRoom, Player, Role
 
 
 class VillagerRole(BaseRole):
@@ -41,5 +42,5 @@ class VillagerRole(BaseRole):
             f"白天投票时使用 /投票 编号 放逐可疑玩家。"
         )
 
-    def get_night_commands(self) -> List[str]:
+    def get_night_commands(self) -> list[str]:
         return []

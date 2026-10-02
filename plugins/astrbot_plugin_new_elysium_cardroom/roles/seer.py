@@ -1,11 +1,12 @@
 """预言家角色"""
 
-from typing import List, TYPE_CHECKING
-from .base import BaseRole
+from typing import TYPE_CHECKING
+
 from ..utils import cmd
+from .base import BaseRole
 
 if TYPE_CHECKING:
-    from ..models import Player, GameRoom, Role
+    from ..models import GameRoom, Player, Role
 
 
 class SeerRole(BaseRole):
@@ -53,5 +54,5 @@ class SeerRole(BaseRole):
             f"⚠️ 注意：每晚只能验证一个人！"
         )
 
-    def get_night_commands(self) -> List[str]:
+    def get_night_commands(self) -> list[str]:
         return [f"{cmd('验人')} 编号"]

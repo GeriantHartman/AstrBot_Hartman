@@ -1,24 +1,26 @@
 """游戏状态图片生成"""
 
-from typing import List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
+
 from PIL import Image, ImageDraw
+
+from .gradient_utils import create_vertical_gradient
 from .styles import (
-    load_font,
-    COLOR_BACKGROUND_TOP,
+    COLOR_ALIVE,
     COLOR_BACKGROUND_BOT,
-    COLOR_TITLE,
-    COLOR_TEXT_LIGHT,
-    COLOR_TEXT_DIM,
+    COLOR_BACKGROUND_TOP,
+    COLOR_BLOOD_MOON,
     COLOR_CARD_BG,
     COLOR_CARD_BORDER,
-    COLOR_ALIVE,
-    COLOR_DEAD,
-    COLOR_NIGHT,
     COLOR_DAY,
-    COLOR_BLOOD_MOON,
+    COLOR_DEAD,
     COLOR_MOONLIGHT,
+    COLOR_NIGHT,
+    COLOR_TEXT_DIM,
+    COLOR_TEXT_LIGHT,
+    COLOR_TITLE,
+    load_font,
 )
-from .gradient_utils import create_vertical_gradient
 
 if TYPE_CHECKING:
     pass
@@ -27,7 +29,7 @@ if TYPE_CHECKING:
 def draw_game_status(
     phase: str,
     day_count: int,
-    players: List[dict],
+    players: list[dict],
     alive_count: int,
     total_count: int,
 ) -> Image.Image:
@@ -188,8 +190,8 @@ def draw_game_status(
 
 
 def draw_vote_result(
-    vote_data: List[dict],
-    exiled_player: Optional[str] = None,
+    vote_data: list[dict],
+    exiled_player: str | None = None,
     is_pk: bool = False,
 ) -> Image.Image:
     """
@@ -316,8 +318,8 @@ def draw_vote_result(
 
 
 def draw_night_result(
-    killed_player: Optional[str] = None,
-    poisoned_player: Optional[str] = None,
+    killed_player: str | None = None,
+    poisoned_player: str | None = None,
     saved: bool = False,
 ) -> Image.Image:
     """

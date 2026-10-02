@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Optional
-
 
 DISPLAY_LABEL_RE = re.compile(r"(?<!第)(\d{1,2})号[.．·]\s*([^，,：:、；;\s）)]+)")
 NUMBER_LABEL_RE = re.compile(r"(?<!第)(\d{1,2})号(?:玩家)?")
@@ -46,9 +44,9 @@ class AIPlayerContext:
     vote_history: list[dict] = field(default_factory=list)
     witch_antidote_used: bool = False
     witch_poison_used: bool = False
-    last_killed_player: Optional[str] = None
-    witch_saved_player: Optional[str] = None
-    witch_poisoned_player: Optional[str] = None
+    last_killed_player: str | None = None
+    witch_saved_player: str | None = None
+    witch_poisoned_player: str | None = None
     can_shoot: bool = False
     wolf_chat_messages: list[dict] = field(default_factory=list)
     vote_discussions: list[dict] = field(default_factory=list)

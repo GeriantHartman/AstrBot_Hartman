@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import TYPE_CHECKING, AsyncGenerator
+from typing import TYPE_CHECKING
 
 from astrbot.api.event import AstrMessageEvent
 
-from .base import BaseCommandHandler
 from ..models import AIPlayerConfig, GamePhase
 from ..utils import cmd, table_name
+from .base import BaseCommandHandler
 
 if TYPE_CHECKING:
     from ..models import GameRoom
@@ -443,20 +444,22 @@ class RoomCommandHandler(BaseCommandHandler):
             f"关系图哈希：{manifest['relationship_graph']['sha256'] or '无'}"
         )
 
-    def _waiting_room_for_event(self, event: AstrMessageEvent) -> "GameRoom | None":
+    def _waiting_room_for_event(self, event: AstrMessageEvent) -> GameRoom | None:
         group_id = event.get_group_id()
         if not group_id:
             return None
         room = self.game_manager.get_room(group_id)
         if not room or room.phase != GamePhase.WAITING:
             return None
-        self.game_manager.attach_event_transport(room, event.unified_msg_origin, event.bot)
+        self.game_manager.attach_event_transport(
+            room, event.unified_msg_origin, event.bot
+        )
         return room
 
-    def _get_supported_character_profiles(self) -> list["CharacterSkillProfile"]:
+    def _get_supported_character_profiles(self) -> list[CharacterSkillProfile]:
         return self.game_manager.character_skill_service.list_profiles()
 
-    def _match_character_profile(self, selector: str) -> "CharacterSkillProfile | None":
+    def _match_character_profile(self, selector: str) -> CharacterSkillProfile | None:
         selector = selector.strip()
         profiles = self._get_supported_character_profiles()
         if selector.isdigit():
@@ -481,8 +484,8 @@ class RoomCommandHandler(BaseCommandHandler):
 
     def _add_character_ai_player(
         self,
-        room: "GameRoom",
-        profile: "CharacterSkillProfile",
+        room: GameRoom,
+        profile: CharacterSkillProfile,
         quiet: bool = False,
     ) -> str:
         if self._room_has_skill(room, profile.skill_id):
@@ -505,14 +508,14 @@ class RoomCommandHandler(BaseCommandHandler):
         )
 
     @staticmethod
-    def _room_has_skill(room: "GameRoom", skill_id: str) -> bool:
+    def _room_has_skill(room: GameRoom, skill_id: str) -> bool:
         return any(
             player.is_ai and player.ai_config and player.ai_config.skill_id == skill_id
             for player in room.players.values()
         )
 
     @staticmethod
-    def _find_ai_player(room: "GameRoom", target: str):
+    def _find_ai_player(room: GameRoom, target: str):
         folded = target.strip().lower()
         for player in room.players.values():
             if not player.is_ai:

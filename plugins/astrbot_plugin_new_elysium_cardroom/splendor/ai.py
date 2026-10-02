@@ -93,8 +93,7 @@ class SplendorAIService:
             return None
         except Exception as exc:
             logger.warning(
-                f"[璀璨宝石AI] {player.name} 调用失败: "
-                f"{type(exc).__name__}: {exc!r}",
+                f"[璀璨宝石AI] {player.name} 调用失败: {type(exc).__name__}: {exc!r}",
                 exc_info=True,
             )
             return None
@@ -103,9 +102,7 @@ class SplendorAIService:
             result = response.result_chain.get_plain_text().strip()
             if result:
                 return result
-            logger.warning(
-                f"[璀璨宝石AI] {player.name} 调用返回空文本，将使用兜底行动"
-            )
+            logger.warning(f"[璀璨宝石AI] {player.name} 调用返回空文本，将使用兜底行动")
             return None
         logger.warning(f"[璀璨宝石AI] {player.name} 调用返回空响应，将使用兜底行动")
         return None

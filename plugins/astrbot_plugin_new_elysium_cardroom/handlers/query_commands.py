@@ -1,14 +1,16 @@
 """查询命令处理"""
 
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import TYPE_CHECKING, AsyncGenerator
-from astrbot.api.event import AstrMessageEvent
+from typing import TYPE_CHECKING
+
 from astrbot.api import logger
+from astrbot.api.event import AstrMessageEvent
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
-from .base import BaseCommandHandler
 from ..roles import RoleFactory
 from ..utils import cmd, table_name
+from .base import BaseCommandHandler
 
 if TYPE_CHECKING:
     from ..services import GameManager

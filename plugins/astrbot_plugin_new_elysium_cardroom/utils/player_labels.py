@@ -17,7 +17,7 @@ LEADING_NUMBER_SPEECH_RE = re.compile(
 )
 
 
-def table_name(player: "Player") -> str:
+def table_name(player: Player) -> str:
     raw_name = ""
     if player.is_ai and player.ai_config and player.ai_config.name:
         raw_name = player.ai_config.name
@@ -30,14 +30,14 @@ def table_name(player: "Player") -> str:
     return name or str(player.name or "").strip() or f"{player.number}号玩家"
 
 
-def operation_label(player: "Player") -> str:
+def operation_label(player: Player) -> str:
     name = table_name(player)
     if player.number:
         return f"{name}（操作编号{player.number}）"
     return name
 
 
-def build_player_name_map(room: "GameRoom") -> dict[int, str]:
+def build_player_name_map(room: GameRoom) -> dict[int, str]:
     return {
         player.number: table_name(player)
         for player in room.players.values()
@@ -70,7 +70,7 @@ def replace_number_labels(
 
 
 def replace_room_number_mentions(
-    text: str, room: "GameRoom", include_operation: bool = False
+    text: str, room: GameRoom, include_operation: bool = False
 ) -> str:
     return replace_number_labels(
         text, build_player_name_map(room), include_operation=include_operation

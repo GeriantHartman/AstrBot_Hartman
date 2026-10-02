@@ -1,15 +1,15 @@
 """局势分析器 - 分析游戏局势和玩家行为"""
 
 import re
-from typing import Dict, List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
+from ....utils import table_name
 from ..prompts import (
+    BEHAVIOR_ANALYSIS_TIPS,
+    DUEL_CONTEXT_TEMPLATE,
     SITUATION_TEMPLATE,
     TACTICAL_DIRECTIVES,
-    DUEL_CONTEXT_TEMPLATE,
-    BEHAVIOR_ANALYSIS_TIPS,
 )
-from ....utils import table_name
 
 if TYPE_CHECKING:
     from ....models import GameRoom, Player
@@ -114,9 +114,9 @@ class BehaviorAnalyzer:
     """玩家行为分析器"""
 
     @staticmethod
-    def analyze_player_behaviors(room: "GameRoom") -> Dict[str, List[str]]:
+    def analyze_player_behaviors(room: "GameRoom") -> dict[str, list[str]]:
         """分析所有玩家的行为并生成标签"""
-        player_tags: Dict[str, List[str]] = {}
+        player_tags: dict[str, list[str]] = {}
 
         for p in room.get_alive_players():
             tags = []

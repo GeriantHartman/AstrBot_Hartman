@@ -1,6 +1,7 @@
 """统一验证器 - 确保AI操作的目标合法"""
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
+
 from astrbot.api import logger
 
 if TYPE_CHECKING:
@@ -13,7 +14,7 @@ class TargetValidator:
     @staticmethod
     def validate_target(
         room: "GameRoom", target_number: int, action_type: str = "操作"
-    ) -> Optional[int]:
+    ) -> int | None:
         """
         验证目标编号是否有效（玩家存在且存活）
 
@@ -51,7 +52,7 @@ class TargetValidator:
     @staticmethod
     def validate_vote_target(
         room: "GameRoom", target_number: int, voter: "Player"
-    ) -> Optional[int]:
+    ) -> int | None:
         """验证投票目标"""
         # 不能投自己
         if target_number == voter.number:
@@ -63,7 +64,7 @@ class TargetValidator:
     @staticmethod
     def validate_kill_target(
         room: "GameRoom", target_number: int, attacker: "Player"
-    ) -> Optional[int]:
+    ) -> int | None:
         """验证击杀目标（狼人/猎人）"""
         # 不能杀自己
         if target_number == attacker.number:
@@ -75,7 +76,7 @@ class TargetValidator:
     @staticmethod
     def validate_poison_target(
         room: "GameRoom", target_number: int, witch: "Player"
-    ) -> Optional[int]:
+    ) -> int | None:
         """验证毒药目标"""
         # 不能毒自己
         if target_number == witch.number:
@@ -87,7 +88,7 @@ class TargetValidator:
     @staticmethod
     def validate_check_target(
         room: "GameRoom", target_number: int, seer: "Player"
-    ) -> Optional[int]:
+    ) -> int | None:
         """验证验人目标（预言家）"""
         # 不能验自己
         if target_number == seer.number:

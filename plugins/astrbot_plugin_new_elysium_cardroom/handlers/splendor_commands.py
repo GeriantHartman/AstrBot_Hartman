@@ -8,16 +8,16 @@ from typing import TYPE_CHECKING
 
 from astrbot.api.event import AstrMessageEvent
 
-from .base import BaseCommandHandler
 from ..splendor.constants import parse_color
 from ..splendor.models import PHASE_PLAYING, PHASE_WAITING
 from ..utils import cmd, table_name
+from .base import BaseCommandHandler
 
 if TYPE_CHECKING:
     from ..services import GameManager
+    from ..services.character_skill_service import CharacterSkillProfile
     from ..splendor import SplendorManager
     from ..splendor.models import SplendorRoom
-    from ..services.character_skill_service import CharacterSkillProfile
 
 
 class SplendorCommandHandler(BaseCommandHandler):
@@ -25,8 +25,8 @@ class SplendorCommandHandler(BaseCommandHandler):
 
     def __init__(
         self,
-        game_manager: "GameManager",
-        splendor_manager: "SplendorManager",
+        game_manager: GameManager,
+        splendor_manager: SplendorManager,
     ):
         super().__init__(game_manager)
         self.splendor_manager = splendor_manager
@@ -64,8 +64,7 @@ class SplendorCommandHandler(BaseCommandHandler):
             f"查看角色AI：{cmd('AI角色列表')}\n"
             f"添加角色AI：{cmd('璀璨加入角色AI')} 名字/序号\n"
             f"补满：{cmd('璀璨补满AI')}\n"
-            f"开始：{cmd('开始璀璨')}\n\n"
-            + self.splendor_manager.waiting_status(room)
+            f"开始：{cmd('开始璀璨')}\n\n" + self.splendor_manager.waiting_status(room)
         )
 
     async def join_room(self, event: AstrMessageEvent) -> AsyncGenerator:
@@ -80,7 +79,9 @@ class SplendorCommandHandler(BaseCommandHandler):
             yield event.plain_result("你已经在这局璀璨宝石中了。")
             return
         if room.is_full:
-            yield event.plain_result(f"房间已满（{room.player_count}/{room.target_players}）。")
+            yield event.plain_result(
+                f"房间已满（{room.player_count}/{room.target_players}）。"
+            )
             return
         player = self.splendor_manager.add_human_player(
             room, player_id, self.get_player_name(event)
@@ -96,11 +97,17 @@ class SplendorCommandHandler(BaseCommandHandler):
             yield event.plain_result("当前群没有等待中的璀璨宝石房间。")
             return
         if room.is_full:
-            yield event.plain_result(f"房间已满（{room.player_count}/{room.target_players}）。")
+            yield event.plain_result(
+                f"房间已满（{room.player_count}/{room.target_players}）。"
+            )
             return
-        selector = self._extract_command_args(event, ["璀璨加入角色AI", "璀璨添加角色AI"])
+        selector = self._extract_command_args(
+            event, ["璀璨加入角色AI", "璀璨添加角色AI"]
+        )
         if not selector:
-            yield event.plain_result(f"请指定角色AI。示例：{cmd('璀璨加入角色AI')} 三月七")
+            yield event.plain_result(
+                f"请指定角色AI。示例：{cmd('璀璨加入角色AI')} 三月七"
+            )
             return
         profile = self._match_character_profile(selector)
         if not profile:
@@ -179,7 +186,9 @@ class SplendorCommandHandler(BaseCommandHandler):
         if not result.ok:
             yield event.plain_result(result.text)
             return
-        yield event.plain_result(result.text + "\n\n" + self.splendor_manager.public_status(room))
+        yield event.plain_result(
+            result.text + "\n\n" + self.splendor_manager.public_status(room)
+        )
         await self.splendor_manager.process_ai_turns(room)
 
     async def end_game(self, event: AstrMessageEvent) -> AsyncGenerator:
@@ -254,7 +263,9 @@ class SplendorCommandHandler(BaseCommandHandler):
             return
         player_id = event.get_sender_id()
         current = room.current_player
-        pending_player_id = room.pending_discard_player_id or room.pending_noble_player_id
+        pending_player_id = (
+            room.pending_discard_player_id or room.pending_noble_player_id
+        )
         actor_id = pending_player_id or (current.id if current else "")
         if actor_id != player_id:
             actor = room.players.get(actor_id)
@@ -273,12 +284,14 @@ class SplendorCommandHandler(BaseCommandHandler):
             return
         status = ""
         if room.phase == PHASE_PLAYING and not result.game_finished:
-            status = "\n\n" + self.splendor_manager.public_status(room, viewer_id=player_id)
+            status = "\n\n" + self.splendor_manager.public_status(
+                room, viewer_id=player_id
+            )
         yield event.plain_result(result.text + status)
         if room.phase == PHASE_PLAYING and not result.game_finished:
             await self.splendor_manager.process_ai_turns(room)
 
-    def _room_for_event(self, event: AstrMessageEvent) -> "SplendorRoom | None":
+    def _room_for_event(self, event: AstrMessageEvent) -> SplendorRoom | None:
         group_id = event.get_group_id()
         if not group_id:
             return None
@@ -289,16 +302,16 @@ class SplendorCommandHandler(BaseCommandHandler):
             )
         return room
 
-    def _waiting_room_for_event(self, event: AstrMessageEvent) -> "SplendorRoom | None":
+    def _waiting_room_for_event(self, event: AstrMessageEvent) -> SplendorRoom | None:
         room = self._room_for_event(event)
         if not room or room.phase != PHASE_WAITING:
             return None
         return room
 
-    def _get_supported_character_profiles(self) -> list["CharacterSkillProfile"]:
+    def _get_supported_character_profiles(self) -> list[CharacterSkillProfile]:
         return self.game_manager.character_skill_service.list_profiles()
 
-    def _match_character_profile(self, selector: str) -> "CharacterSkillProfile | None":
+    def _match_character_profile(self, selector: str) -> CharacterSkillProfile | None:
         selector = selector.strip()
         profiles = self._get_supported_character_profiles()
         if selector.isdigit():
@@ -310,7 +323,10 @@ class SplendorCommandHandler(BaseCommandHandler):
             if folded in {profile.skill_id.lower(), profile.display_name.lower()}:
                 return profile
         for profile in profiles:
-            if folded in profile.display_name.lower() or folded in profile.skill_id.lower():
+            if (
+                folded in profile.display_name.lower()
+                or folded in profile.skill_id.lower()
+            ):
                 return profile
         return None
 

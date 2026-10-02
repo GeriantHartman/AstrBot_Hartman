@@ -1,44 +1,50 @@
-# -*- coding: utf-8 -*-
 """Hypothesis: relationships sitting at exactly 100 were DECLARED
 (session canon / initial state), not EARNED (process state).
 
 If true: relationship is set at the start, then nothing ever moves it
 -> that is the real shape of C6, not "diode".
 """
-import sqlite3, glob, os, re, json
+
+import glob
+import json
+import os
+import re
+import sqlite3
 from collections import Counter
 
-DATA = r'E:\agentic-rpg\AstrBot\data\plugin_data\astrbot_plugin_agentic_rpg'
-DECL_PAT = re.compile(r'设定|前世|宿命|羁绊|契约|无限|∞|基础|初始|本命|天赋|系统精灵|修正至')
+DATA = r"E:\agentic-rpg\AstrBot\data\plugin_data\astrbot_plugin_agentic_rpg"
+DECL_PAT = re.compile(
+    r"设定|前世|宿命|羁绊|契约|无限|∞|基础|初始|本命|天赋|系统精灵|修正至"
+)
 
-fs = sorted(glob.glob(os.path.join(DATA, 'world_*.db')))
-print('files', len(fs), flush=True)
+fs = sorted(glob.glob(os.path.join(DATA, "world_*.db")))
+print("files", len(fs), flush=True)
 
 rows = []
 for f in fs:
     b = os.path.basename(f)[:-3]
-    p = b.split('_')
-    sid = p[0] + ':' + p[1] + ':' + '_'.join(p[2:])
+    p = b.split("_")
+    sid = p[0] + ":" + p[1] + ":" + "_".join(p[2:])
     con = sqlite3.connect(f)
     cur = con.cursor()
     try:
-        cur.execute('SELECT interaction_count FROM game_sessions')
+        cur.execute("SELECT interaction_count FROM game_sessions")
         r = cur.fetchone()
     except Exception as e:
-        print('GS QUERY FAIL', os.path.basename(f), repr(e), flush=True)
+        print("GS QUERY FAIL", os.path.basename(f), repr(e), flush=True)
         r = None
     if not r or not r[0]:
         if r is None:
-            print('SKIP none', os.path.basename(f), flush=True)
+            print("SKIP none", os.path.basename(f), flush=True)
         con.close()
         continue
     ic = r[0]
 
     try:
-        cur.execute('SELECT world_preset FROM game_sessions')
+        cur.execute("SELECT world_preset FROM game_sessions")
         preset = cur.fetchone()[0]
     except Exception:
-        preset = '?'
+        preset = "?"
 
     try:
         cur.execute("SELECT COUNT(*) FROM world_canon WHERE source='player_declared'")
@@ -47,13 +53,15 @@ for f in fs:
         decl = 0
 
     try:
-        cur.execute('SELECT npc_entity_id, value, stage, history, player_entity_id FROM npc_player_affinity')
+        cur.execute(
+            "SELECT npc_entity_id, value, stage, history, player_entity_id FROM npc_player_affinity"
+        )
         aff = cur.fetchall()
     except Exception as e:
-        print('AFF QUERY FAIL', os.path.basename(f), repr(e), flush=True)
+        print("AFF QUERY FAIL", os.path.basename(f), repr(e), flush=True)
         aff = []
     if not aff:
-        print('AFF EMPTY', os.path.basename(f), 'ic=', ic, flush=True)
+        print("AFF EMPTY", os.path.basename(f), "ic=", ic, flush=True)
     con.close()
 
     for rec in aff:
@@ -64,22 +72,36 @@ for f in fs:
             h = []
         if not isinstance(h, list):
             h = []
-        reasons = ' '.join(str(x.get('reason', '')) for x in h if isinstance(x, dict))
-        rows.append(dict(sid=sid, ic=ic, preset=preset, decl=decl,
-                         npc=npc, val=val, stage=stage,
-                         n_hist=len(h), declared=bool(DECL_PAT.search(reasons))))
+        reasons = " ".join(str(x.get("reason", "")) for x in h if isinstance(x, dict))
+        rows.append(
+            {
+                "sid": sid,
+                "ic": ic,
+                "preset": preset,
+                "decl": decl,
+                "npc": npc,
+                "val": val,
+                "stage": stage,
+                "n_hist": len(h),
+                "declared": bool(DECL_PAT.search(reasons)),
+            }
+        )
 
 n = len(rows)
-print('sessions with ic>0:', len({r['sid'] for r in rows}))
-print('total affinity rows:', n, flush=True)
-at100 = [r for r in rows if r['val'] == 100]
-print('value==100: %d (%.1f%%)' % (len(at100), 100 * len(at100) / max(1, n)))
+print("sessions with ic>0:", len({r["sid"] for r in rows}))
+print("total affinity rows:", n, flush=True)
+at100 = [r for r in rows if r["val"] == 100]
+print(f"value==100: {len(at100):d} ({100 * len(at100) / max(1, n):.1f}%)")
 print()
 
-d_all = sum(1 for r in rows if r['declared'])
-d_100 = sum(1 for r in at100 if r['declared'])
-print('history contains DECLARATION language: %d/%d = %.1f%%' % (d_all, n, 100 * d_all / max(1, n)))
-print('  of the value==100 rows              : %d/%d = %.1f%%' % (d_100, len(at100), 100 * d_100 / max(1, len(at100))))
+d_all = sum(1 for r in rows if r["declared"])
+d_100 = sum(1 for r in at100 if r["declared"])
+print(
+    f"history contains DECLARATION language: {d_all:d}/{n:d} = {100 * d_all / max(1, n):.1f}%"
+)
+print(
+    f"  of the value==100 rows              : {d_100:d}/{len(at100):d} = {100 * d_100 / max(1, len(at100)):.1f}%"
+)
 print()
 
 
@@ -88,19 +110,24 @@ def med(xs):
     return xs[len(xs) // 2] if xs else 0
 
 
-print('history length median: declared=%d  earned=%d' % (
-    med([r['n_hist'] for r in rows if r['declared']]),
-    med([r['n_hist'] for r in rows if not r['declared']])))
+print(
+    f"history length median: declared={med([r['n_hist'] for r in rows if r['declared']]):d}  "
+    f"earned={med([r['n_hist'] for r in rows if not r['declared']]):d}"
+)
 print()
-print('stage dist DECLARED:', dict(Counter(r['stage'] for r in rows if r['declared'])))
-print('stage dist EARNED  :', dict(Counter(r['stage'] for r in rows if not r['declared'])))
+print("stage dist DECLARED:", dict(Counter(r["stage"] for r in rows if r["declared"])))
+print(
+    "stage dist EARNED  :", dict(Counter(r["stage"] for r in rows if not r["declared"]))
+)
 print()
-print('%-38s %5s %6s %8s' % ('session', 'ic', 'decl', 'aff@100'))
+print(f"{'session':<38} {'ic':>5} {'decl':>6} {'aff@100':>8}")
 seen = []
 for r in rows:
-    if r['sid'] not in seen:
-        seen.append(r['sid'])
-for sid in sorted(seen, key=lambda s: -max(r['ic'] for r in rows if r['sid'] == s)):
-    ss = [r for r in rows if r['sid'] == sid]
-    print('%-38s %5d %6d %8d' % (sid[:38], ss[0]['ic'], ss[0]['decl'],
-                                sum(1 for r in ss if r['val'] == 100)))
+    if r["sid"] not in seen:
+        seen.append(r["sid"])
+for sid in sorted(seen, key=lambda s: -max(r["ic"] for r in rows if r["sid"] == s)):
+    ss = [r for r in rows if r["sid"] == sid]
+    print(
+        f"{sid[:38]:<38} {int(ss[0]['ic']):5d} {int(ss[0]['decl']):6d} "
+        f"{sum(1 for r in ss if r['val'] == 100):8d}"
+    )

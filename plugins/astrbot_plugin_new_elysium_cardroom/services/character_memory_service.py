@@ -41,7 +41,7 @@ class CharacterMemoryService:
             logger.warning(f"[新爱莉都棋牌室] 读取角色记忆失败 {path}: {exc}")
         return []
 
-    def remember_game(self, player: "Player", room: "GameRoom", result: str) -> None:
+    def remember_game(self, player: Player, room: GameRoom, result: str) -> None:
         role_name = player.role.display_name if player.role else "未知身份"
         self.remember_tabletop_game(
             player=player,
@@ -53,8 +53,8 @@ class CharacterMemoryService:
 
     def remember_tabletop_game(
         self,
-        player: "Player",
-        room: "GameRoom",
+        player: Player,
+        room: GameRoom,
         game_name: str,
         result: str,
         detail: str = "",

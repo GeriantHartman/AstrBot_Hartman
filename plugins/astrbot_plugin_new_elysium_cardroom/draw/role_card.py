@@ -1,22 +1,23 @@
 """角色卡片图片生成"""
 
 from PIL import Image, ImageDraw
-from .styles import (
-    load_font,
-    COLOR_BACKGROUND_TOP,
-    COLOR_BACKGROUND_BOT,
-    COLOR_TEXT_LIGHT,
-    COLOR_TEXT_DIM,
-    COLOR_CARD_BG,
-    COLOR_WEREWOLF,
-    COLOR_SEER,
-    COLOR_WITCH,
-    COLOR_HUNTER,
-    COLOR_VILLAGER,
-    COLOR_GOOD_CAMP,
-    COLOR_EVIL_CAMP,
-)
+
 from .gradient_utils import create_vertical_gradient
+from .styles import (
+    COLOR_BACKGROUND_BOT,
+    COLOR_BACKGROUND_TOP,
+    COLOR_CARD_BG,
+    COLOR_EVIL_CAMP,
+    COLOR_GOOD_CAMP,
+    COLOR_HUNTER,
+    COLOR_SEER,
+    COLOR_TEXT_DIM,
+    COLOR_TEXT_LIGHT,
+    COLOR_VILLAGER,
+    COLOR_WEREWOLF,
+    COLOR_WITCH,
+    load_font,
+)
 
 # 角色配置
 ROLE_CONFIG = {

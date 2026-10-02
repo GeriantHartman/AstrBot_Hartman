@@ -2,6 +2,7 @@
 
 import re
 from typing import TYPE_CHECKING
+
 from astrbot.api.event import AstrMessageEvent
 from astrbot.core.message.components import At
 
