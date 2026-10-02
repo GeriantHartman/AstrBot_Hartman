@@ -59,7 +59,9 @@ def resolve_session_dir(data_root: Path, session: str | None) -> Path:
 
 
 def latest_turn_id(session_dir: Path) -> str:
-    ids = sorted({p.name.split("-actor-")[0] for p in session_dir.glob("*-actor-*.json")})
+    ids = sorted(
+        {p.name.split("-actor-")[0] for p in session_dir.glob("*-actor-*.json")}
+    )
     if not ids:
         sys.exit(f"no actor documents in {session_dir}")
     return ids[-1]
@@ -105,9 +107,13 @@ def show_playwright(doc: dict, limit: int | None) -> None:
         f"  tools_called={len(meta.get('tool_trace') or [])}"
     )
     for call in meta.get("tool_trace") or []:
-        print(f"    tool {call.get('tool')} ok={call.get('ok')} args={call.get('args')}")
+        print(
+            f"    tool {call.get('tool')} ok={call.get('ok')} args={call.get('args')}"
+        )
     roll = view.get("action_roll") or {}
-    print(f"  action_roll={roll.get('grade', '')!r} notes={view.get('daily_tone', '')!r}")
+    print(
+        f"  action_roll={roll.get('grade', '')!r} notes={view.get('daily_tone', '')!r}"
+    )
     print("  --- director notes ---")
     print(cut((doc.get("response") or {}).get("text", ""), limit))
 
@@ -129,8 +135,7 @@ def show_actor(doc: dict, limit: int | None) -> None:
         f"  prompt={len(request.get('prompt', ''))} chars"
     )
     print(
-        f"  cleaned={meta.get('cleaned')}"
-        f"  chars_stripped={meta.get('chars_stripped')}"
+        f"  cleaned={meta.get('cleaned')}  chars_stripped={meta.get('chars_stripped')}"
     )
     print("  --- director notes injected ---")
     print(cut(view.get("director_notes", ""), limit))
@@ -140,7 +145,9 @@ def show_actor(doc: dict, limit: int | None) -> None:
 
 def show_scribe(doc: dict, limit: int | None) -> None:
     meta = (doc.get("response") or {}).get("meta") or {}
-    print(f"  parsed_ok={meta.get('parsed_ok')}  error={(doc.get('response') or {}).get('error')!r}")
+    print(
+        f"  parsed_ok={meta.get('parsed_ok')}  error={(doc.get('response') or {}).get('error')!r}"
+    )
     if meta.get("parse_error"):
         print(f"  parse_error={meta['parse_error']!r}")
     print("  --- parsed ---")
@@ -168,9 +175,7 @@ def main() -> None:
     args = parser.parse_args()
 
     session_dir = resolve_session_dir(Path(args.data_root), args.session)
-    turn_id = (
-        latest_turn_id(session_dir) if args.turn == "latest" else args.turn
-    )
+    turn_id = latest_turn_id(session_dir) if args.turn == "latest" else args.turn
     docs = load_turn(session_dir, turn_id)
 
     if args.json:

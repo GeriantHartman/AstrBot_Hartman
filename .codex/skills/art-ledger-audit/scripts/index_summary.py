@@ -88,8 +88,7 @@ def flags(row: dict) -> str:
 
 def print_table(rows: list[dict]) -> None:
     print(
-        f"{'turn_id':<24}{'preset':<10}{'model':<22}"
-        f"{'user':<34}{'assistant':<34}flags"
+        f"{'turn_id':<24}{'preset':<10}{'model':<22}{'user':<34}{'assistant':<34}flags"
     )
     print("-" * 130)
     for row in rows:

@@ -289,7 +289,7 @@ class MyPlugin(star.Star):
 
 ## Known Core Provider Bugs & Fixes
 
-> **基底**：本仓库已合并 upstream `95e98b8ae`（v4.28.1 之后 30 个 commit）。
+> **基底**：本仓库已合并 `migrate/upstream-4.28` 与官方稳定版 `v4.28.2`，保留 origin 的 ART、RPG 5.0 和核心补丁。
 > 下面每条都标注了合并后修复实际所在的文件；AstrBot 官方升级覆盖这些文件时，
 > 必须逐条重新补齐。验证方式：`git diff upstream/master HEAD -- <文件>`。
 
@@ -416,7 +416,7 @@ class MyPlugin(star.Star):
 - Chat Template 编辑器页与数据接口在 FastAPI 上行为正确（见上面第 10 条）。插件里的 `quart.jsonify` 走上游兼容层，可用。
 - 插件测试 54 项全部通过。
 
-需要插件侧配合的改动（已在插件分支 `compat/astrbot-4.28` 上修复）：
+需要插件侧配合的改动（已从 `compat/astrbot-4.28` 移植到当前 RPG 5.0 分支，并同步运行目录）：
 
 - `_prepare_native_request` 在 v4.28 变成了协程。`handlers/hooks.py` 的 `_build_provider_payload_preview` 原先同步调用它，会拿到未 await 的 coroutine，审计里的 provider payload 预览静默退化成 `preview_error`。修复方式是把该方法与 `_build_narrative_audit_view` 改成 async，并用 `inspect.isawaitable` 同时兼容新旧 core。
 

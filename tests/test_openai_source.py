@@ -63,6 +63,78 @@ def _make_groq_provider(overrides: dict | None = None) -> ProviderGroq:
     )
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+async def test_opencode_session_headers_survive_request_retries(monkeypatch, stream):
+    provider = _make_provider({"api_base": "https://opencode.ai/zen/go/v1"})
+    requests = []
+
+    async def fake_stream():
+        yield ChatCompletionChunk.model_validate(
+            {
+                "id": "test",
+                "object": "chat.completion.chunk",
+                "created": 0,
+                "model": "gpt-4o-mini",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"role": "assistant", "content": "ok"},
+                        "finish_reason": "stop",
+                    }
+                ],
+            }
+        )
+
+    async def fake_create(**kwargs):
+        requests.append(kwargs)
+        if len(requests) == 1:
+            raise httpx.ConnectError("temporary connection failure")
+        if stream:
+            return fake_stream()
+        return ChatCompletion.model_validate(
+            {
+                "id": "test",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "gpt-4o-mini",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "ok"},
+                        "finish_reason": "stop",
+                    }
+                ],
+            }
+        )
+
+    monkeypatch.setattr(request_retry, "REQUEST_RETRY_WAIT_MIN_S", 0)
+    monkeypatch.setattr(request_retry, "REQUEST_RETRY_WAIT_MAX_S", 0)
+    monkeypatch.setattr(provider.client.chat.completions, "create", fake_create)
+    try:
+        if stream:
+            responses = [
+                response
+                async for response in provider.text_chat_stream(
+                    prompt="hello", session_id="private-session", request_max_retries=2
+                )
+            ]
+            assert responses[-1].completion_text == "ok"
+        else:
+            response = await provider.text_chat(
+                prompt="hello", session_id="private-session", request_max_retries=2
+            )
+            assert response.completion_text == "ok"
+        assert len(requests) == 2
+        headers = provider._opencode_session_headers("private-session")
+        assert all(request["extra_headers"] == headers for request in requests)
+        assert headers != provider._opencode_session_headers("another-session")
+        assert "private-session" not in headers["x-opencode-session"]
+        assert provider.custom_headers["User-Agent"] == provider._OPENCODE_GO_USER_AGENT
+    finally:
+        await provider.terminate()
+
+
 @pytest.mark.parametrize(
     ("overrides", "expected_client"),
     [
