@@ -7,6 +7,8 @@ description: 离线审计 AstrBot Art 单主模型情感陪伴的输入、执行
 
 Art 2.x 一轮只有一个主 agent，可以在工具返回后多次请求同一模型。没有独立编剧、导演笔记或后台书记。所有角色与玩家默认已是恋人，玩家修订与私有设定优先于原始角色背景。
 
+每次拉取分支/更新 Art 后，由执行更新的 agent 额外核对本技能与 `art-plugin-architecture`。插件仓库不包含主仓库技能目录，单独更新插件不会自动更新实际 agent 技能；应从匹配的主仓库集成版本复制完整技能目录到项目的 Codex/Claude 两侧，校验清单、哈希和 UTF-8 无 BOM，确认可发现并报告来源提交。具体交接步骤见插件 AGENTS.md 的「拉取后的必要 agent 技能更新」。
+
 ## 工作流
 
 1. 先运行 `python .codex/skills/art-ledger-audit/scripts/index_summary.py --limit 20`，不要先读完整 prompt。

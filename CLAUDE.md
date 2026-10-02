@@ -507,12 +507,31 @@ Key routing rules:
 同步与校验（从仓库根运行）：
 
 ```bash
-cp -r .codex/skills/<name> .claude/skills/<name>
+mkdir -p .claude/skills/<name>
+cp -r .codex/skills/<name>/. .claude/skills/<name>/
 rm -rf .claude/skills/<name>/__pycache__ .claude/skills/<name>/scripts/__pycache__
 diff -rq --exclude=__pycache__ .codex/skills/<name> .claude/skills/<name>   # 必须无输出
 ```
 
 新增 skill 时两侧都要建，并更新上表。所有 skill 文件必须 UTF-8 无 BOM。
+
+### Art 拉取后的必要技能更新
+
+每次拉取 Art 相关分支或更新插件后，由执行更新的 agent 额外核对 `art-ledger-audit` 与 `art-plugin-architecture`。**插件代码更新不能作为 agent 技能已更新的依据。** 这两个技能用于维护与审计，不是需要注入前台 RP 的 AstrBot Skills。
+
+主仓库已跟踪 `.codex/skills/<name>/` 和 `.claude/skills/<name>/`，完整拉取此仓库会更新这些文件；但单独拉取 Art 子模块、WebUI 更新插件、部署时排除隐藏目录、稀疏检出或使用另一份 agent 工作目录，不会自动更新 agent 实际加载的副本。
+
+执行更新的 agent 必须完成：
+
+1. 确认已拉取的 Art 提交与对应主仓库集成版本（核对该版本的 `plugins/astrbot_plugin_art` gitlink），并定位 agent 实际使用的项目根目录。
+2. 从对应版本的 [AstrBot_Hartman](https://github.com/GeriantHartman/AstrBot_Hartman) 获取两项技能的**完整目录**，包括 SKILL.md、agents、references、scripts；不能只复制入口文件，也不能用旧三阶段技能代替。
+3. 在实际项目根目录更新 `.codex/skills/art-ledger-audit/`、`.claude/skills/art-ledger-audit/`、`.codex/skills/art-plugin-architecture/`、`.claude/skills/art-plugin-architecture/`。检查既有本地修改，不覆盖其他技能；两侧使用同一版本，清理已确认过时的文件。
+4. 核对文件清单与逐文件 SHA-256、UTF-8 无 BOM、技能元数据与引用路径。可用时运行 skill-creator 的 quick_validate.py；分别执行审计脚本的 `--help` 验证完整目录可用。若当前 agent 未发现新技能，重新加载技能或开启新的 agent 会话后确认可用。
+5. 汇报插件/技能来源提交、实际安装位置与验证结果。未取得匹配技能时明确说明缺失，不宣称维护环境更新完成。
+
+供另一台机器的 agent 使用：
+
+> 拉取并更新 Art 后，请额外更新当前项目的 art-ledger-audit 和 art-plugin-architecture。以已拉取 Art 提交对应的 AstrBot_Hartman 集成版本为来源，复制完整技能目录到当前 agent 实际使用的 .codex/skills 与 .claude/skills，核对文件清单、哈希、UTF-8 无 BOM 和审计脚本入口，确认新技能可被发现，并汇报来源提交与安装路径。仅更新插件目录不算完成此步骤。
 
 ### RP Bench（角色扮演跑分）
 
