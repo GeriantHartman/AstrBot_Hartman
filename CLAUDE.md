@@ -488,6 +488,13 @@ Key routing rules:
 - RP 跑分、模型 RP 能力对比、验角色卡、角色卡规模排名（bare / YAML / skill 卡）、插件 4.0 vs 5.0 回归 → invoke rp-bench
 - Art 单主模型、工具、私有资产、UID USER、恢复或 Persona 注入修改 → invoke art-plugin-architecture；账本事故取证 → invoke art-ledger-audit
 
+### Art 亲密情境（NSFW）接线
+
+- 开关是会话私有 `session.nsfw`，**由主模型自行判断**，经已有 `art_write`（session 白名单本就含 `nsfw`）置位/复位；**没有面向玩家的命令入口**，代码不做关键词门控或审核正则。
+- 置位后 `layers/assemble.py::dynamic_context` 把外挂资产 `plugins/astrbot_plugin_art/prompts/nsfw.yaml` 的 `guidance` 原样追加到动态块；工具成功会重建动态块，因此**同一轮内即生效**。
+- 该资产**留空或缺失即不注入、不报错**（`core/assets.py::PromptStore.optional_text`），支持热重载。填写时必须整体缩进在 `guidance: |` 块标量之下——**顶格书写会让 YAML 解析失败，资产静默退化为空**，NSFW 看起来"接了但没反应"。两份副本（`plugins/` 与 `data/plugins/`）须同步且 UTF-8 无 BOM。
+- 独立插件 `astrbot_plugin_nsfw_mode` 与 Art **无耦合**：它靠改写 `req.system_prompt` 注入 style，而 Art 在 `layers/agent.py` 全量重建请求；唯一能穿过来的是 `event.set_extra("selected_provider")`（见 `core/provider_resolver.py`）。provider（如 SiliconFlow/DeepSeek）自身的对齐仍可能拦截，属已知残余，不由本接线解决。
+
 ### Agent skills 双份镜像约定
 
 `.codex/skills/` 与 `.claude/skills/` 是两个**独立**的技能加载位置。同一个 skill 必须**两侧各存一份**且内容字节一致——只写一份会让另一侧读不到，或读到过期版本。

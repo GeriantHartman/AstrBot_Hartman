@@ -192,7 +192,7 @@ def test_character_cards(tmp_art_env):
     assert source == "canonical"
 
     # Test layered prompt extraction
-    block = CharacterCardManager.extract_always_injected_block(card, nsfw=False)
+    block = CharacterCardManager.extract_always_injected_block(card)
     assert "【角色：流萤】" in block
     assert "说话口吻" in block
     assert "自称" in block
@@ -491,6 +491,32 @@ def test_assets_hot_reload(tmp_path):
     )
     _bump_mtime(presets)
     assert "second" in assets.presets.names()
+
+
+def test_optional_prompt_asset_tolerates_missing_and_blank(tmp_path):
+    """An unfilled optional asset reads as empty instead of raising."""
+    prompts = tmp_path / "prompts"
+    prompts.mkdir()
+    assets = ArtAssets(tmp_path / "presets", prompts)
+
+    # Missing file, comment-only document, empty block scalar, and a blank
+    # string all read as "" — each key is read once so no reload is involved.
+    assert assets.prompts.optional_text("nsfw", "guidance") == ""
+    (prompts / "blank.yaml").write_text("# 只有注释\n", encoding="utf-8")
+    assert assets.prompts.optional_text("blank", "guidance") == ""
+    (prompts / "empty.yaml").write_text("guidance: |\n", encoding="utf-8")
+    assert assets.prompts.optional_text("empty", "guidance") == ""
+    (prompts / "spaced.yaml").write_text('guidance: "   "\n', encoding="utf-8")
+    assert assets.prompts.optional_text("spaced", "guidance") == ""
+
+    (prompts / "filled.yaml").write_text(
+        "guidance: |\n  亲密指导正文\n", encoding="utf-8"
+    )
+    assert assets.prompts.optional_text("filled", "guidance") == "亲密指导正文"
+
+    # A malformed file degrades to empty rather than breaking the foreground.
+    (prompts / "bad.yaml").write_text("guidance: [unclosed\n", encoding="utf-8")
+    assert assets.prompts.optional_text("bad", "guidance") == ""
 
 
 def _bump_mtime(path: Path) -> None:

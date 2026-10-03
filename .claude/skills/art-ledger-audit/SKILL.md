@@ -29,7 +29,7 @@ Art 2.x 一轮只有一个主 agent，可以在工具返回后多次请求同一
 - `response.meta.replaces`：撤回旧轮的 ID。旧审计文件仍保留，不能当作有效故事历史；结合后续撤回记录或 art_turns.status。
 - 思考、工具过程与撤回正文不自动注入后续会话，不能再当 memory 来源。审计记录本身不参与玩法或自动纠偏。
 - 代码抽取的氛围应注明 code_random 来源与有效范围，无玩家特殊要求时遵循；不应存在行动成败抽取。
-- 主模型通过 art_write 保存关系、记忆、心愿与剧本；promise 必须有有效玩家原话来源。不存在“书记有没有跑”的新架构判据。
+- 主模型通过 art_write 保存关系、记忆、心愿与剧本；promise 必须有有效玩家原话来源。不存在“书记有没有跑”的新架构判据。会话亲密开关（`session.nsfw`）同样由主模型经 art_write 自行置位、无玩家命令；置位后动态块应含 `prompts/nsfw.yaml` 的 guidance，未置位或资产留空时不应出现。
 - 无工具轮应只有一个前台模型请求；工具轮只延续同一 agent/provider。执行事件条数不等于模型请求数，USER reviewer 不能算进前台调用次数。核对资源目录与有效历史，不能把最近注入的一部分当成全部资源。
 
 ## UID USER reviewer 审计
@@ -50,7 +50,7 @@ stage=user_review 使用独立配置 provider（WebUI 下拉，默认 deepseek/d
 
 | 问题 | 源码落点 |
 | --- | --- |
-| 关系前提、文风或自然语言修订策略 | prompts/agent.yaml、layers/assemble.py |
+| 关系前提、文风、自然语言修订策略或亲密情境注入 | prompts/agent.yaml、prompts/nsfw.yaml、layers/assemble.py |
 | 主调用、有效历史、过程污染或审计缺字段 | layers/agent.py、core/audit_ledger.py |
 | 工具错误、资源权限、真实写入 | tools/agent.py |
 | 私有角色/世界副本或随机氛围 | core/cards.py、core/state.py |

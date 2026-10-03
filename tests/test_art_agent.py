@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import shutil
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -15,7 +16,7 @@ from astrbot.core.astr_agent_context import AgentContextWrapper, AstrAgentContex
 from astrbot.core.platform.astr_message_event import AstrMessageEvent
 from astrbot.core.provider.entities import LLMResponse, ProviderRequest, ProviderType
 from astrbot.core.star.context import Context
-from plugins.astrbot_plugin_art.core.assets import ArtAssets
+from plugins.astrbot_plugin_art.core.assets import ArtAssets, PromptStore
 from plugins.astrbot_plugin_art.core.audit_ledger import LLMAuditLedger
 from plugins.astrbot_plugin_art.core.cards import CharacterCardManager
 from plugins.astrbot_plugin_art.core.db import ArtDatabase, safe_session_id
@@ -24,6 +25,7 @@ from plugins.astrbot_plugin_art.core.state import ArtStateManager
 from plugins.astrbot_plugin_art.core.users import UserProfiles
 from plugins.astrbot_plugin_art.layers.agent import run_art_agent
 from plugins.astrbot_plugin_art.layers.assemble import (
+    NSFW_PREFIX,
     dynamic_context,
 )
 from plugins.astrbot_plugin_art.main import ArtPlugin
@@ -489,6 +491,40 @@ async def test_full_history_pagination_and_no_random_redraw(agent_env):
     assert await env.db.get_current_scene(sid) == scene_before
     dynamic = await dynamic_context(env.state, sid, "read")
     assert "code_random" in dynamic
+
+
+@pytest.mark.asyncio
+async def test_nsfw_guidance_injected_only_when_session_flag_set(agent_env, tmp_path):
+    env = agent_env
+    sid = env.event.unified_msg_origin
+    repo_prompts = Path("plugins/astrbot_plugin_art/prompts")
+
+    empty_dir = tmp_path / "empty_prompts"
+    filled_dir = tmp_path / "filled_prompts"
+    for directory in (empty_dir, filled_dir):
+        directory.mkdir()
+        shutil.copy(repo_prompts / "agent.yaml", directory / "agent.yaml")
+    (empty_dir / "nsfw.yaml").write_text("# 留空\n", encoding="utf-8")
+    (filled_dir / "nsfw.yaml").write_text(
+        "guidance: |\n  亲密指导正文\n", encoding="utf-8"
+    )
+
+    # Flag off: no block.
+    env.state.assets.prompts = PromptStore(empty_dir)
+    assert NSFW_PREFIX not in await dynamic_context(env.state, sid, "read")
+
+    # Flag on but the external asset is still unfilled: no block, no exception.
+    await env.db.update_session_fields(sid, nsfw=1)
+    assert NSFW_PREFIX not in await dynamic_context(env.state, sid, "read")
+
+    # Filled external asset: injected verbatim once the flag is on.
+    env.state.assets.prompts = PromptStore(filled_dir)
+    dynamic = await dynamic_context(env.state, sid, "read")
+    assert NSFW_PREFIX in dynamic and "亲密指导正文" in dynamic
+
+    # Flag off again: the block disappears.
+    await env.db.update_session_fields(sid, nsfw=0)
+    assert NSFW_PREFIX not in await dynamic_context(env.state, sid, "read")
 
 
 @pytest.mark.asyncio

@@ -13,6 +13,7 @@ description: 维护或修改 AstrBot Art 单主模型情感陪伴插件的架构
 
 - 情感陪伴是核心，角色与玩家默认已经是恋人。玩家明确修订 > 会话私有设定 > 默认恋人前提 > 原始角色背景。具体人物的性格与声线来自私有卡。
 - `prompts/agent.yaml` 是唯一前台通用协议，包含资源手册和完整写作指导。Art 不继承 AstrBot Persona、其示例或核心 Skills/工具说明；入口 Persona 仅服务尚未被 Art 接管的普通聊天。
+- 亲密情境由会话私有 `session.nsfw` 门控：主模型自行判断并用 art_write 置位，无玩家命令、无关键词门控；置位后动态块注入外挂 `prompts/nsfw.yaml`（留空即不注入、不报错）。
 - 保留通用写作指导，只移除特定角色特点。叙事质量与玩家代行边界写在协议中；代码只处理确定性的权限、参数、状态、工具、模板与审计，不加叙事正则、关键词门控或安全审核器。
 - Art/RPG 按 `event.unified_msg_origin` 独占会话，普通聊天不接管。工具不能指定其他 session、任意文件路径或 SQL。
 
@@ -66,7 +67,7 @@ Discord 工具过程隐藏，最终正文与实际 reasoning 分开发送；思�
 
 | 改动 | 优先检查 |
 | --- | --- |
-| 协议/Persona/动态状态 | prompts/agent.yaml、layers/assemble.py、layers/agent.py |
+| 协议/Persona/动态状态/亲密情境 | prompts/agent.yaml、prompts/nsfw.yaml、layers/assemble.py、layers/agent.py |
 | 接管/历史/中止/恢复 | main.py、layers/agent.py、core/session.py |
 | 权限/批量原子性 | tools/agent.py |
 | 模板隔离/角色身份/氛围 | core/assets.py、core/cards.py、core/state.py |
